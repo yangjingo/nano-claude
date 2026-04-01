@@ -1,6 +1,6 @@
 # 为什么要拆解 Claude Code
 
-> Nano Claude 系列开篇
+> Nano Claude 系列开篇 — 减法学习法
 
 ---
 
@@ -104,39 +104,94 @@ Claude Code 是一个优秀的 CLI Agent 设计案例：
 
 ---
 
-## 4. 如果是我，我会怎么做
+## 4. 减法实践：删除 29 个空目录
 
-假设让我设计一个 CLI Agent，我会：
+### 4.1 发现问题
 
-### 4.1 命令系统
+打开 `src/` 目录，看到 29 个子目录：
 
-```python
-# 用户输入 → 匹配命令 → 执行
-commands = {
-    "commit": handle_commit,
-    "review": handle_review,
-}
+```
+src/assistant/
+src/bootstrap/
+src/bridge/
+src/buddy/
+src/hooks/
+src/plugins/
+... (29 total)
 ```
 
-Claude Code 的方案更复杂：
-- 从 JSON 快照加载命令元数据
-- 用 Token 匹配算法计算相似度
-- 支持 plugin/skill 扩展
+每个目录只有 1 个文件：`__init__.py`
 
-### 4.2 工具系统
+这些是什么？能删吗？
+
+### 4.2 理解占位符
+
+这些目录是 **占位符**。
+
+原始 Claude Code (TypeScript) 有这些子系统，Python 移植时保留了目录结构，但没有实现内容。
+
+每个 `__init__.py` 只是从 JSON 加载元数据：
+
+```python
+# src/buddy/__init__.py
+SNAPSHOT_PATH = Path(__file__).parent.parent / 'reference_data' / 'subsystems' / 'buddy.json'
+SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
+```
+
+### 4.3 验证可删除
+
+```bash
+# 检查依赖
+grep -r "from .assistant" src/  # 无结果
+
+# 运行测试
+uv run nano-claude summary  # 成功
+```
+
+### 4.4 执行删除
+
+```bash
+rm -rf src/assistant src/bootstrap src/bridge src/buddy ...
+rm -rf src/reference_data/subsystems/
+```
+
+**结果**：
+- Python 文件：66 → 37
+- 目录：32 → 3
+
+### 4.5 理解收获
+
+**删除的前提是理解**：
+- 我知道这些目录是什么（占位符）
+- 我知道它们没有被使用（无依赖）
+- 我知道删了不会坏（测试通过）
+
+---
+
+## 5. 如果是我，我会怎么做
+
+假设让我设计一个 CLI Agent：
+
+### 5.1 命令系统
 
 ```python
 # 简单版本
-tools = [Read, Write, Bash, ...]
+commands = {"commit": handle_commit, "review": handle_review}
+```
+
+Claude Code 更复杂：JSON 快照 + Token 匹配 + plugin/skill 扩展
+
+### 5.2 工具系统
+
+```python
+# 简单版本
+tools = [Read, Write, Bash]
 result = tool.execute(params)
 ```
 
-Claude Code 的方案：
-- 工具权限系统（deny_names, deny_prefixes）
-- MCP 协议支持
-- 工具结果折叠和格式化
+Claude Code 更复杂：权限系统 + MCP 协议 + 结果折叠
 
-### 4.3 会话管理
+### 5.3 会话管理
 
 ```python
 # 简单版本
@@ -145,42 +200,26 @@ messages.append(user_message)
 response = llm.chat(messages)
 ```
 
-Claude Code 的方案：
-- 会话持久化
-- Turn Loop 多轮控制
-- Token 预算管理
+Claude Code 更复杂：持久化 + Turn Loop + Token 预算
 
 ---
 
-## 5. 这一系列文章会讲什么
+## 6. 后续文章
 
-| # | 主题 | 从什么命令切入 |
-|---|------|---------------|
-| 01 | CLI 入口 | `nano-claude --help` |
-| 02 | 命令注册表 | `nano-claude commands` |
-| 03 | 意图路由 | `nano-claude route "commit"` |
-| 04 | 运行时启动 | `nano-claude bootstrap` |
-| 05 | 查询引擎 | 内部数据流 |
-| 06 | 权限系统 | 工具过滤 |
-| 07 | 数据模型 | frozen dataclass |
-| 08 | 会话管理 | `load-session` |
-| 09 | JSON 快照 | 元数据驱动 |
-| 10 | 删除空目录 | 减法实践 |
-
-每篇文章都遵循 **whyj-style**：
-- 为什么这样设计
-- 代码怎么实现
-- 对比其他方案
-- 我的反思
+| 主题 | 切入点 |
+|------|--------|
+| CLI 入口 | `nano-claude --help` |
+| 命令注册表 | `nano-claude commands` |
+| 意图路由 | `nano-claude route "commit"` |
+| 运行时启动 | `nano-claude bootstrap` |
+| 查询引擎 | 内部数据流 |
+| 权限系统 | 工具过滤 |
+| 数据模型 | frozen dataclass |
 
 ---
 
-## 6. 延伸阅读
+## 7. 延伸阅读
 
 - [Claude Code 官方文档](https://docs.anthropic.com/claude-code)
 - [Yufeng He 的源码分析](https://zhuanlan.zhihu.com/p/2022389695955346888)
 - [Nano Claude 仓库](https://github.com/yangjingo/nano-claude)
-
----
-
-*下一篇: [delete-empty-dirs.md](delete-empty-dirs.md)*

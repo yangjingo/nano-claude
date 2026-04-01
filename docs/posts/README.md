@@ -8,8 +8,7 @@
 
 | 文章 | 状态 |
 |------|------|
-| [introduction.md](introduction.md) | ✅ 为什么要拆解 Claude Code |
-| [delete-empty-dirs.md](delete-empty-dirs.md) | ✅ 删除 29 个空目录 |
+| [introduction.md](introduction.md) | ✅ 为什么要拆解 + 删除 29 个空目录 |
 
 ---
 
@@ -24,8 +23,6 @@
 | 查询引擎 | ⬜ | 内部数据流 |
 | 权限系统 | ⬜ | 工具过滤 |
 | 数据模型 | ⬜ | frozen dataclass |
-| 会话管理 | ⬜ | `load-session` |
-| JSON 快照 | ⬜ | 元数据驱动 |
 
 ---
 
