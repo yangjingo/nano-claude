@@ -1,13 +1,16 @@
 [project]
-name = "nano-cc"
+name = "nano-claude"
 version = "0.1.0"
 description = "Minimal Python CLI framework - understanding through subtraction"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+license = "MIT"
+authors = [{ name = "Yang Jing", email = "yangjing@example.com" }]
+keywords = ["cli", "claude", "agent", "ai"]
 
 [project.scripts]
-nano-cc = "src.main:main"
+nano-claude = "src.main:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -15,3 +18,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "README.md", "LICENSE"]

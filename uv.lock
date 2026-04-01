@@ -3,6 +3,6 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
-name = "nano-cc"
+name = "nano-claude"
 version = "0.1.0"
 source = { editable = "." }
