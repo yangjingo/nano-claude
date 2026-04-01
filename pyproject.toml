@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Minimal Python CLI framework - understanding through subtraction"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "anthropic>=0.87.0",
+    "claude-agent-sdk>=0.1.53",
+    "rich>=14.3.3",
+]
 license = "MIT"
 authors = [{ name = "Yang Jing", email = "yangjing@example.com" }]
 keywords = ["cli", "claude", "agent", "ai"]

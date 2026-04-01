@@ -18,9 +18,13 @@ from .tool_pool import assemble_tool_pool
 from .tools import execute_tool, get_tool, get_tools, render_tool_index
 
 
+from .repl import run_repl
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Python porting workspace for the Claude Code rewrite effort')
-    subparsers = parser.add_subparsers(dest='command', required=True)
+    subparsers = parser.add_subparsers(dest='command', required=False)
+    subparsers.add_parser('repl', help='start interactive REPL')
     subparsers.add_parser('summary', help='render a Markdown summary of the Python porting workspace')
     subparsers.add_parser('manifest', help='print the current Python workspace manifest')
     subparsers.add_parser('parity-audit', help='compare the Python workspace against the local ignored TypeScript archive when available')
@@ -94,7 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # Default to REPL when no command specified
+    if args.command is None:
+        return run_repl()
     manifest = build_port_manifest()
+    if args.command == 'repl':
+        return run_repl()
     if args.command == 'summary':
         print(QueryEnginePort(manifest).render_summary())
         return 0
