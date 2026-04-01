@@ -2,6 +2,7 @@
 
 > O(1) 减法学习：删除代码，理解本质
 
+![](./figures/fig1.png)
 ---
 
 ## 问题
@@ -30,6 +31,120 @@ Claude Code 有 1,900+ TypeScript 文件。207 个命令。184 个工具。
 数据怎么流转？
     ↓
 核心代码在哪？
+```
+
+---
+
+## 项目配置
+
+### uv 管理
+
+用 [uv](https://docs.astral.sh/uv/) 管理项目：
+
+```bash
+# 安装依赖
+uv sync
+
+# 运行
+uv run nano-claude
+```
+
+### API 调用
+
+基于 [anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python)，**异步流式输出**：
+
+```python
+from anthropic import AsyncAnthropic
+
+client = AsyncAnthropic()
+
+async with client.messages.stream(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": "Hello"}],
+) as stream:
+    async for text in stream.text_stream:
+        print(text, end="", flush=True)
+```
+
+### Rich UI
+
+用 [rich](https://github.com/Textualize/rich) 实现：
+- Spinner 动画（类似 TypeScript 的 ora）
+- 彩色输出
+- Markdown 渲染
+
+```python
+from rich.console import Console
+from rich.status import Status
+
+console = Console()
+with Status("Thinking...", spinner="dots"):
+    # async streaming...
+    pass
+```
+
+配置文件 `~/.nano-claude/settings.json`：
+
+```json
+{
+  "env": {
+    "NANO_CLAUDE_API_KEY": "your-api-key",
+    "NANO_CLAUDE_BASE_URL": "https://api.anthropic.com",
+    "NANO_CLAUDE_MODEL": "claude-sonnet-4-6"
+  }
+}
+```
+
+或直接使用环境变量 `ANTHROPIC_API_KEY` 和 `ANTHROPIC_BASE_URL`。
+
+### PyPI 发布
+
+学习了 PyPI 发布流程：
+
+```bash
+# 安装（发布后）
+pip install nano-claude
+
+# 或用 uv
+uv pip install nano-claude
+```
+
+### --help
+
+```bash
+uv run nano-claude --help
+```
+
+```
+usage: nano-claude [-h] {summary,manifest,commands,tools,route,bootstrap,...} ...
+
+Python porting workspace for the Claude Code rewrite effort
+
+commands:
+  summary             项目摘要
+  manifest            源码结构
+  commands            命令列表
+  tools               工具列表
+  route               意图路由
+  bootstrap           会话启动
+  turn-loop           多轮对话
+  subsystems          模块列表
+  parity-audit        一致性审计
+  setup-report        启动报告
+  command-graph       命令图
+  tool-pool           工具池
+  bootstrap-graph     启动图
+  flush-transcript    持久化会话
+  load-session        加载会话
+  show-command        查看命令
+  show-tool           查看工具
+  exec-command        执行命令 shim
+  exec-tool           执行工具 shim
+  remote-mode         远程模式
+  ssh-mode            SSH 模式
+  teleport-mode       传送模式
+  direct-connect-mode 直连模式
+  deep-link-mode      深链模式
 ```
 
 ---
@@ -92,6 +207,53 @@ Claude Code 每个模块都更复杂。为什么？值得吗？
 
 ---
 
+## UI 计划
+
+### 原始 Claude Code 的 UI
+
+TypeScript 版用 **Ink**（React 终端 UI）：
+
+```tsx
+// React 风格的 TUI
+import { render, Box, Text } from 'ink';
+
+const App = () => (
+  <Box flexDirection="column">
+    <Text color="green">Hello!</Text>
+  </Box>
+);
+```
+
+功能：
+- CompanionSprite.tsx — AI 伙伴动画
+- 流式 Markdown 渲染
+- 工具调用可视化
+- 状态栏、进度条
+
+### Python 版计划
+
+用 **Textual** 实现类似 Ink 的体验：
+
+```python
+from textual.app import App
+from textual.widgets import Header, Footer
+
+class NanoClaudeApp(App):
+    def compose(self):
+        yield Header()
+        yield Footer()
+```
+
+| 功能 | Textual 实现 |
+|------|-------------|
+| REPL 输入 | `Input` widget |
+| Markdown 渲染 | `Markdown` widget |
+| 命令补全 | 自定义 Completer |
+| 流式输出 | 消息更新 |
+| 状态栏 | `Footer` |
+
+---
+
 ## 后续
 
 | 主题 | 切入点 |
@@ -109,5 +271,6 @@ Claude Code 每个模块都更复杂。为什么？值得吗？
 ## 参考
 
 - [Claude Code 文档](https://docs.anthropic.com/claude-code)
+- [Claude Agent SDK (Python)](https://platform.claude.com/docs/en/agent-sdk/python) — 核心 API 调用
 - [Yufeng He 分析](https://zhuanlan.zhihu.com/p/2022389695955346888)
 - [GitHub](https://github.com/yangjingo/nano-claude)
