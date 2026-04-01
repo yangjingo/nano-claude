@@ -183,4 +183,4 @@ Claude Code 的方案：
 
 ---
 
-*下一篇: [Python CLI 入口的五个细节](../01-entrypoint/)*
+*下一篇: [delete-empty-dirs.md](delete-empty-dirs.md)*

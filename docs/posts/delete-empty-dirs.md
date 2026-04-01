@@ -163,5 +163,4 @@ Total Python files: **37**  (从 66 减少)
 
 ---
 
-*上一篇: [JSON 快照镜像哲学](../09-json-snapshot/)*
-*下一篇: 待定*
+*上一篇: [introduction.md](introduction.md)*
