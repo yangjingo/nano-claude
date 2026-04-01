@@ -1,191 +1,160 @@
-# Rewriting Project Claw Code
+# Nano Claude
 
-<p align="center">
-  <strong>⭐ The fastest repo in history to surpass 50K stars, reaching the milestone in just 2 hours after publication ⭐</strong>
-</p>
-
-<p align="center">
-  <a href="https://star-history.com/#instructkr/claw-code&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date" width="600" />
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <img src="assets/clawd-hero.jpeg" alt="Claw" width="300" />
-</p>
-
-<p align="center">
-  <strong>Better Harness Tools, not merely storing the archive of leaked Claude Code</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/sponsors/instructkr"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github&style=for-the-badge" alt="Sponsor on GitHub" /></a>
-</p>
-
-> [!IMPORTANT]
-> **Rust port is now in progress** on the [`dev/rust`](https://github.com/instructkr/claw-code/tree/dev/rust) branch and is expected to be merged into main today. The Rust implementation aims to deliver a faster, memory-safe harness runtime. Stay tuned — this will be the definitive version of the project.
-
-> If you find this work useful, consider [sponsoring @instructkr on GitHub](https://github.com/sponsors/instructkr) to support continued open-source harness engineering research.
+> 瘦身 Claude Code，一层层剥开
 
 ---
 
-## Backstory
+## 这个项目是什么
 
-At 4 AM on March 31, 2026, I woke up to my phone blowing up with notifications. The Claude Code source had been exposed, and the entire dev community was in a frenzy. My girlfriend in Korea was genuinely worried I might face legal action from Anthropic just for having the code on my machine — so I did what any engineer would do under pressure: I sat down, ported the core features to Python from scratch, and pushed it before the sun came up.
+**Nano Claude** 是一个减法实验。
 
-The whole thing was orchestrated end-to-end using [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex) by [@bellman_ych](https://x.com/bellman_ych) — a workflow layer built on top of OpenAI's Codex ([@OpenAIDevs](https://x.com/OpenAIDevs)). I used `$team` mode for parallel code review and `$ralph` mode for persistent execution loops with architect-level verification. The entire porting session — from reading the original harness structure to producing a working Python tree with tests — was driven through OmX orchestration.
+我们从一个功能完整的 Claude Code 镜像开始，通过不断删除代码来理解它。
 
-The result is a clean-room Python rewrite that captures the architectural patterns of Claude Code's agent harness without copying any proprietary source. I'm now actively collaborating with [@bellman_ych](https://x.com/bellman_ych) — the creator of OmX himself — to push this further. The basic Python foundation is already in place and functional, but we're just getting started. **Stay tuned — a much more capable version is on the way.**
+```
+理解 → 删除 → 理解更深 → 删除更多
+```
 
-https://github.com/instructkr/claw-code
-
-![Tweet screenshot](assets/tweet-screenshot.png)
-
-## The Creators Featured in Wall Street Journal For Avid Claude Code Fans
-
-I've been deeply interested in **harness engineering** — studying how agent systems wire tools, orchestrate tasks, and manage runtime context. This isn't a sudden thing. The Wall Street Journal featured my work earlier this month, documenting how I've been one of the most active power users exploring these systems:
-
-> AI startup worker Sigrid Jin, who attended the Seoul dinner, single-handedly used 25 billion of Claude Code tokens last year. At the time, usage limits were looser, allowing early enthusiasts to reach tens of billions of tokens at a very low cost.
->
-> Despite his countless hours with Claude Code, Jin isn't faithful to any one AI lab. The tools available have different strengths and weaknesses, he said. Codex is better at reasoning, while Claude Code generates cleaner, more shareable code.
->
-> Jin flew to San Francisco in February for Claude Code's first birthday party, where attendees waited in line to compare notes with Cherny. The crowd included a practicing cardiologist from Belgium who had built an app to help patients navigate care, and a California lawyer who made a tool for automating building permit approvals using Claude Code.
->
-> "It was basically like a sharing party," Jin said. "There were lawyers, there were doctors, there were dentists. They did not have software engineering backgrounds."
->
-> — *The Wall Street Journal*, March 21, 2026, [*"The Trillion Dollar Race to Automate Our Entire Lives"*](https://lnkd.in/gs9td3qd)
-
-![WSJ Feature](assets/wsj-feature.png)
+这不是要重建 Claude Code，而是要**剥开它**，找到核心。
 
 ---
 
-## Porting Status
+## 为什么要这样做
 
-The main source tree is now Python-first.
+### 问题
 
-- `src/` contains the active Python porting workspace
-- `tests/` verifies the current Python workspace
-- the exposed snapshot is no longer part of the tracked repository state
+Claude Code 有 1,900+ TypeScript 文件，207 个命令，184 个工具。
 
-The current Python workspace is not yet a complete one-to-one replacement for the original system, but the primary implementation surface is now Python.
+没有人能一次性理解这么多代码。
 
-## Why this rewrite exists
+### 方法
 
-I originally studied the exposed codebase to understand its harness, tool wiring, and agent workflow. After spending more time with the legal and ethical questions—and after reading the essay linked below—I did not want the exposed snapshot itself to remain the main tracked source tree.
+**减法理解法**：
 
-This repository now focuses on Python porting work instead.
+1. 删除不理解的代码
+2. 观察什么坏了
+3. 理解为什么坏了
+4. 决定是否保留
 
-## Repository Layout
+### 目标
 
-```text
-.
-├── src/                                # Python porting workspace
-│   ├── __init__.py
-│   ├── commands.py
-│   ├── main.py
-│   ├── models.py
-│   ├── port_manifest.py
-│   ├── query_engine.py
-│   ├── task.py
-│   └── tools.py
-├── tests/                              # Python verification
-├── assets/omx/                         # OmX workflow screenshots
-├── 2026-03-09-is-legal-the-same-as-legitimate-ai-reimplementation-and-the-erosion-of-copyleft.md
-└── README.md
+找到一个**最小可运行的核**—— 然后真正理解它。
+
+---
+
+## 减法记录
+
+| 日期 | 操作 | 结果 |
+|------|------|------|
+| 起始 | 完整镜像 | 66 Python 文件, 32 目录 |
+| Day 1 | 删除 Rust 实现 | -74 文件, -21 目录 |
+| Day 1 | 删除空子系统 | -29 目录 |
+| **当前** | | **37 文件, 3 目录** |
+
+---
+
+## 当前状态
+
+```
+src/
+├── main.py          # CLI 入口
+├── runtime.py       # 运行时核心
+├── commands.py      # 命令注册
+├── tools.py         # 工具注册
+├── models.py        # 数据模型
+├── query_engine.py  # 查询引擎
+└── ...              # 其他核心模块
 ```
 
-## Python Workspace Overview
+**已删除**：
+- ✅ Rust 实现 (74 文件)
+- ✅ 29 个空子系统目录
+- ✅ TypeScript 归档引用
 
-The new Python `src/` tree currently provides:
+**待删除**：
+- ⏳ 5 个 remote-mode 命令
+- ⏳ 2 个 exec-* shim 命令
+- ⏳ 更多冗余模块
 
-- **`port_manifest.py`** — summarizes the current Python workspace structure
-- **`models.py`** — dataclasses for subsystems, modules, and backlog state
-- **`commands.py`** — Python-side command port metadata
-- **`tools.py`** — Python-side tool port metadata
-- **`query_engine.py`** — renders a Python porting summary from the active workspace
-- **`main.py`** — a CLI entrypoint for manifest and summary output
+---
 
-## Quickstart
-
-Render the Python porting summary:
+## 快速开始
 
 ```bash
-python3 -m src.main summary
+# 安装
+uv sync
+
+# 运行
+uv run nano-claude summary
+
+# 命令列表
+uv run nano-claude commands --limit 10
+
+# 工具列表
+uv run nano-claude tools --limit 10
+
+# 意图路由
+uv run nano-claude route "commit changes"
 ```
 
-Print the current Python workspace manifest:
+---
 
-```bash
-python3 -m src.main manifest
+## 博客进度
+
+我们在写一系列博客，记录每次减法的思考过程。
+
+| # | 文章 | 状态 |
+|---|------|------|
+| 00 | 为什么要拆解一个 CLI 工具 | ⬜ |
+| 01 | Python CLI 入口的五个细节 | ⬜ |
+| 02 | 元组即注册表 | ⬜ |
+| 03 | route_prompt 算法拆解 | ⬜ |
+| 04 | PortRuntime 会话启动 | ⬜ |
+| 05 | QueryEnginePort 聚合层 | ⬜ |
+| 06 | Turn Loop 状态机 | ⬜ |
+| 07 | ToolPermissionContext | ⬜ |
+| 08 | frozen=True 的力量 | ⬜ |
+| 09 | JSON 快照镜像哲学 | ⬜ |
+| 10 | 删除 29 个空目录 | ⬜ |
+| 11 | 拆解后的收获 | ⬜ |
+
+详见 [docs/posts/](docs/posts/)
+
+---
+
+## 减法原则
+
+详见 [AGENTS.md](AGENTS.md)
+
+1. **只做减法** — 禁止新增代码
+2. **全程使用 Claude Code** — Claude 理解后才能删除
+3. **纯 Python 实现** — 删除 Rust 和 TypeScript 归档
+
+---
+
+## 与 Claw Code 的关系
+
+**Claw Code** 是原始的 Python 移植项目，功能完整。
+
+**Nano Claude** 是 Claw Code 的减法分支，追求极简理解。
+
+```
+Claw Code (功能完整)
+    │
+    └── Nano Claude (精简核心)
+          │
+          └── 每次删除都是一次理解
 ```
 
-List the current Python modules:
+---
 
-```bash
-python3 -m src.main subsystems --limit 16
-```
+## License
 
-Run verification:
+MIT
 
-```bash
-python3 -m unittest discover -s tests -v
-```
+---
 
-Run the parity audit against the local ignored archive (when present):
+## 免责声明
 
-```bash
-python3 -m src.main parity-audit
-```
-
-Inspect mirrored command/tool inventories:
-
-```bash
-python3 -m src.main commands --limit 10
-python3 -m src.main tools --limit 10
-```
-
-## Current Parity Checkpoint
-
-The port now mirrors the archived root-entry file surface, top-level subsystem names, and command/tool inventories much more closely than before. However, it is **not yet** a full runtime-equivalent replacement for the original TypeScript system; the Python tree still contains fewer executable runtime slices than the archived source.
-
-
-## Built with `oh-my-codex`
-
-The restructuring and documentation work on this repository was AI-assisted and orchestrated with Yeachan Heo's [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex), layered on top of Codex.
-
-- **`$team` mode:** used for coordinated parallel review and architectural feedback
-- **`$ralph` mode:** used for persistent execution, verification, and completion discipline
-- **Codex-driven workflow:** used to turn the main `src/` tree into a Python-first porting workspace
-
-### OmX workflow screenshots
-
-![OmX workflow screenshot 1](assets/omx/omx-readme-review-1.png)
-
-*Ralph/team orchestration view while the README and essay context were being reviewed in terminal panes.*
-
-![OmX workflow screenshot 2](assets/omx/omx-readme-review-2.png)
-
-*Split-pane review and verification flow during the final README wording pass.*
-
-## Community
-
-<p align="center">
-  <a href="https://instruct.kr/"><img src="assets/instructkr.png" alt="instructkr" width="400" /></a>
-</p>
-
-Join the [**instructkr Discord**](https://instruct.kr/) — the best Korean language model community. Come chat about LLMs, harness engineering, agent workflows, and everything in between.
-
-[![Discord](https://img.shields.io/badge/Join%20Discord-instruct.kr-5865F2?logo=discord&style=for-the-badge)](https://instruct.kr/)
-
-## Star History
-
-See the chart at the top of this README.
-
-## Ownership / Affiliation Disclaimer
-
-- This repository does **not** claim ownership of the original Claude Code source material.
-- This repository is **not affiliated with, endorsed by, or maintained by Anthropic**.
+- 本项目不拥有 Claude Code 的原始源码
+- 本项目与 Anthropic 无关联
+- 这是一个独立的学习/研究项目
