@@ -1,13 +1,13 @@
 """Python porting workspace for the Claude Code rewrite effort."""
 
-from .commands import PORTED_COMMANDS, build_command_backlog
+from .engine.query_engine import QueryEnginePort, TurnResult
+from .engine.runtime import PortRuntime, RuntimeSession
 from .parity_audit import ParityAuditResult, run_parity_audit
 from .port_manifest import PortManifest, build_port_manifest
-from .query_engine import QueryEnginePort, TurnResult
-from .runtime import PortRuntime, RuntimeSession
+from .registry.commands import PORTED_COMMANDS, build_command_backlog
+from .registry.tools import PORTED_TOOLS, build_tool_backlog
 from .session_store import StoredSession, load_session, save_session
 from .system_init import build_system_init_message
-from .tools import PORTED_TOOLS, build_tool_backlog
 
 __all__ = [
     'ParityAuditResult',

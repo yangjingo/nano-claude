@@ -4,12 +4,12 @@ import json
 from dataclasses import dataclass, field
 from uuid import uuid4
 
-from .commands import build_command_backlog
-from .models import PermissionDenial, UsageSummary
-from .port_manifest import PortManifest, build_port_manifest
-from .session_store import StoredSession, load_session, save_session
-from .tools import build_tool_backlog
-from .transcript import TranscriptStore
+from ..models import PermissionDenial, UsageSummary
+from ..port_manifest import PortManifest, build_port_manifest
+from ..registry.commands import build_command_backlog
+from ..registry.tools import build_tool_backlog
+from ..session_store import StoredSession, load_session, save_session
+from ..transcript import TranscriptStore
 
 
 @dataclass(frozen=True)

@@ -7,14 +7,17 @@ requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.87.0",
     "claude-agent-sdk>=0.1.53",
-    "rich>=14.3.3",
+    "rich>=13.0.0",
+    "questionary>=2.0.0",
+    "pytest>=9.0.2",
+    "prompt-toolkit>=3.0.52",
 ]
 license = "MIT"
 authors = [{ name = "Yang Jing", email = "yangjing@example.com" }]
 keywords = ["cli", "claude", "agent", "ai"]
 
 [project.scripts]
-nano-claude = "src.main:main"
+nano-claude = "src.cli.main:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -34,6 +34,14 @@ class Settings:
 DEFAULT_SETTINGS = Settings()
 
 
+def _first_nonempty(*values: str) -> str:
+    for value in values:
+        candidate = value.strip()
+        if candidate:
+            return candidate
+    return ""
+
+
 def ensure_config_dir() -> Path:
     """Ensure config directory and subdirs exist."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -74,33 +82,56 @@ def get_api_key() -> str:
     """Get API key from settings or environment."""
     import os
     settings = load_settings()
-    # Check nano-claude settings first
-    key = settings.env.get("NANO_CLAUDE_API_KEY", "")
-    if key:
-        return key
-    # Check ANTHROPIC_AUTH_TOKEN (Claude Code style)
-    key = settings.env.get("ANTHROPIC_AUTH_TOKEN", "")
-    if key:
-        return key
-    # Fall back to environment variables
-    return os.environ.get("ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
+    return _first_nonempty(
+        settings.env.get("NANO_CLAUDE_API_KEY", ""),
+        settings.env.get("ANTHROPIC_AUTH_TOKEN", ""),
+        os.environ.get("NANO_CLAUDE_API_KEY", ""),
+        os.environ.get("ANTHROPIC_API_KEY", ""),
+        os.environ.get("ANTHROPIC_AUTH_TOKEN", ""),
+    )
 
 
 def get_base_url() -> str:
     """Get API base URL from settings or environment."""
     import os
     settings = load_settings()
-    url = settings.env.get("NANO_CLAUDE_BASE_URL", "")
-    if url:
-        return url
-    # Check ANTHROPIC_BASE_URL in settings
-    url = settings.env.get("ANTHROPIC_BASE_URL", "")
-    if url:
-        return url
-    return os.environ.get("ANTHROPIC_BASE_URL", "")
+    return _first_nonempty(
+        settings.env.get("NANO_CLAUDE_BASE_URL", ""),
+        settings.env.get("ANTHROPIC_BASE_URL", ""),
+        os.environ.get("NANO_CLAUDE_BASE_URL", ""),
+        os.environ.get("ANTHROPIC_BASE_URL", ""),
+    )
 
 
 def get_model() -> str:
-    """Get model name from settings."""
+    """Get model tier from settings (returns tier name, not actual model)."""
+    import os
     settings = load_settings()
-    return settings.env.get("NANO_CLAUDE_MODEL", "glm-5")
+    return _first_nonempty(
+        settings.env.get("NANO_CLAUDE_MODEL", ""),
+        os.environ.get("NANO_CLAUDE_MODEL", ""),
+        "sonnet",  # Default tier
+    )
+
+
+def get_actual_model(tier: str) -> str:
+    """Get actual model name for a tier (haiku/sonnet/opus)."""
+    import os
+    settings = load_settings()
+
+    tier_key = f"NANO_CLAUDE_DEFAULT_{tier.upper()}_MODEL"
+    return _first_nonempty(
+        settings.env.get(tier_key, ""),
+        os.environ.get(tier_key, ""),
+        _default_model_for_tier(tier),
+    )
+
+
+def _default_model_for_tier(tier: str) -> str:
+    """Fallback default models for each tier."""
+    defaults = {
+        "haiku": "claude-haiku-4-5",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-6",
+    }
+    return defaults.get(tier, "claude-sonnet-4-6")

@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator
 
 from anthropic import AsyncAnthropic
 
-from .settings import get_api_key, get_base_url, get_model
+from .settings import get_api_key, get_base_url, get_model, get_actual_model
 
 
 @dataclass
@@ -32,7 +32,8 @@ def create_async_client() -> AsyncAnthropic:
 async def stream_agent_prompt(prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
     """Stream a single prompt through the agent."""
     client = create_async_client()
-    model = get_model()
+    tier = get_model()
+    model = get_actual_model(tier)  # Convert tier to actual model name
 
     messages = [{"role": "user", "content": prompt}]
 
@@ -71,7 +72,8 @@ class AgentSession:
             await self.start()
 
         self.messages.append({"role": "user", "content": prompt})
-        model = get_model()
+        tier = get_model()
+        model = get_actual_model(tier)  # Convert tier to actual model name
 
         full_text = []
 
@@ -95,7 +97,8 @@ class AgentSession:
             await self.start()
 
         self.messages.append({"role": "user", "content": prompt})
-        model = get_model()
+        tier = get_model()
+        model = get_actual_model(tier)  # Convert tier to actual model name
 
         response = await self.client.messages.create(
             model=model,

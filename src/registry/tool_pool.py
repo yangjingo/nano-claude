@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .models import PortingModule
-from .permissions import ToolPermissionContext
+from ..models import PortingModule
+from ..permissions import ToolPermissionContext
 from .tools import get_tools
 
 

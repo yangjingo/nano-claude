@@ -1,24 +1,21 @@
 from __future__ import annotations
 
 import argparse
-
-from .bootstrap_graph import build_bootstrap_graph
-from .command_graph import build_command_graph
-from .commands import execute_command, get_command, get_commands, render_command_index
-from .direct_modes import run_deep_link, run_direct_connect
-from .parity_audit import run_parity_audit
-from .permissions import ToolPermissionContext
-from .port_manifest import build_port_manifest
-from .query_engine import QueryEnginePort
-from .remote_runtime import run_remote_mode, run_ssh_mode, run_teleport_mode
-from .runtime import PortRuntime
-from .session_store import load_session
-from .setup import run_setup
-from .tool_pool import assemble_tool_pool
-from .tools import execute_tool, get_tool, get_tools, render_tool_index
-
-
-from .repl import run_repl
+from ..bootstrap_graph import build_bootstrap_graph
+from ..direct_modes import run_deep_link, run_direct_connect
+from ..engine.query_engine import QueryEnginePort
+from ..engine.runtime import PortRuntime
+from ..parity_audit import run_parity_audit
+from ..permissions import ToolPermissionContext
+from ..port_manifest import build_port_manifest
+from ..registry.command_graph import build_command_graph
+from ..registry.commands import execute_command, get_command, get_commands, render_command_index
+from ..registry.tool_pool import assemble_tool_pool
+from ..registry.tools import execute_tool, get_tool, get_tools, render_tool_index
+from ..remote_runtime import run_remote_mode, run_ssh_mode, run_teleport_mode
+from ..session_store import load_session
+from ..setup import run_setup
+from .repl import _print_buddy, run_repl
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -92,6 +89,10 @@ def build_parser() -> argparse.ArgumentParser:
     exec_tool_parser = subparsers.add_parser('exec-tool', help='execute a mirrored tool shim by exact name')
     exec_tool_parser.add_argument('name')
     exec_tool_parser.add_argument('payload')
+
+    # Buddy commands
+    buddy_parser = subparsers.add_parser('buddy', help='roll a random Zelda champion buddy')
+    buddy_parser.add_argument('--registry', action='store_true', help='show all champions registry')
     return parser
 
 
@@ -214,9 +215,25 @@ def main(argv: list[str] | None = None) -> int:
         result = execute_tool(args.name, args.payload)
         print(result.message)
         return 0 if result.handled else 1
+
+    # Buddy commands
+    if args.command == 'buddy':
+        if args.registry:
+            from ..buddy.species import SPECIES
+            print('Champion Registry')
+            print('')
+            for species in SPECIES:
+                beast = f' [{species.divine_beast}]' if species.divine_beast else ''
+                print(f'- {species.name}{beast} - {species.signature_weapon}')
+            return 0
+
+        _print_buddy()
+        return 0
+
     parser.error(f'unknown command: {args.command}')
     return 2
 
 
 if __name__ == '__main__':
     raise SystemExit(main())
+

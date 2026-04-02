@@ -39,7 +39,7 @@ python3 -m unittest discover -s tests -v
 Or run a single test:
 
 ```bash
-python3 -m unittest tests.test_porting_workspace.PortingWorkspaceTests.test_manifest_counts_python_files -v
+python3 -m unittest tests.test_workspace.PortingWorkspaceTests.test_manifest_counts_python_files -v
 ```
 
 ## Architecture
