@@ -1,4 +1,5 @@
 """Agent client using anthropic SDK with async streaming."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,14 +7,25 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
 from anthropic import AsyncAnthropic
+from anthropic.types import ContentBlockStopEvent, ContentBlockDeltaEvent
 
-from .settings import get_api_key, get_base_url, get_model, get_actual_model
+from .settings import get_api_key, get_base_url, get_model
+
+
+@dataclass
+class StreamChunk:
+    """A chunk from streaming response."""
+
+    type: str  # "thinking" or "text"
+    content: str
 
 
 @dataclass
 class AgentResponse:
     """Response from agent."""
+
     text: str
+    thinking: str = ""
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     stop_reason: str = "completed"
     usage: dict[str, int] = field(default_factory=dict)
@@ -29,11 +41,12 @@ def create_async_client() -> AsyncAnthropic:
     return AsyncAnthropic(api_key=api_key)
 
 
-async def stream_agent_prompt(prompt: str, system_prompt: str = "") -> AsyncIterator[str]:
+async def stream_agent_prompt(
+    prompt: str, system_prompt: str = ""
+) -> AsyncIterator[str]:
     """Stream a single prompt through the agent."""
     client = create_async_client()
-    tier = get_model()
-    model = get_actual_model(tier)  # Convert tier to actual model name
+    model = get_model()  # Direct model name from settings
 
     messages = [{"role": "user", "content": prompt}]
 
@@ -66,16 +79,16 @@ class AgentSession:
         self.client = None
         self.messages = []
 
-    async def send_stream(self, prompt: str) -> AsyncIterator[str]:
-        """Send a prompt and stream response."""
+    async def send_stream(self, prompt: str) -> AsyncIterator[StreamChunk]:
+        """Send a prompt and stream response with thinking support."""
         if not self.client:
             await self.start()
 
         self.messages.append({"role": "user", "content": prompt})
-        tier = get_model()
-        model = get_actual_model(tier)  # Convert tier to actual model name
+        model = get_model()
 
         full_text = []
+        full_thinking = []
 
         async with self.client.messages.stream(
             model=model,
@@ -83,11 +96,33 @@ class AgentSession:
             system=self.system_prompt if self.system_prompt else None,
             messages=self.messages,
         ) as stream:
-            async for text in stream.text_stream:
-                full_text.append(text)
-                yield text
+            # Iterate over raw events
+            async for event in stream:
+                if event.type == "content_block_start":
+                    # Track which block type we're in
+                    if hasattr(event, "content_block") and hasattr(
+                        event.content_block, "type"
+                    ):
+                        current_block_type = event.content_block.type
+                elif event.type == "content_block_delta":
+                    if hasattr(event, "delta"):
+                        delta = event.delta
+                        if hasattr(delta, "type") and delta.type == "thinking_delta":
+                            if hasattr(delta, "thinking"):
+                                chunk = StreamChunk(
+                                    type="thinking", content=delta.thinking
+                                )
+                                full_thinking.append(delta.thinking)
+                                yield chunk
+                        elif hasattr(delta, "type") and delta.type == "text_delta":
+                            if hasattr(delta, "text"):
+                                chunk = StreamChunk(type="text", content=delta.text)
+                                full_text.append(delta.text)
+                                yield chunk
+                elif event.type == "content_block_stop":
+                    pass
 
-        # Add assistant response to history after streaming completes
+        # Add assistant response to history
         if full_text:
             self.messages.append({"role": "assistant", "content": "".join(full_text)})
 
@@ -97,12 +132,10 @@ class AgentSession:
             await self.start()
 
         self.messages.append({"role": "user", "content": prompt})
-        tier = get_model()
-        model = get_actual_model(tier)  # Convert tier to actual model name
+        model = get_model()  # Direct model name from settings
 
         response = await self.client.messages.create(
             model=model,
-            max_tokens=1024,
             system=self.system_prompt if self.system_prompt else None,
             messages=self.messages,
         )
@@ -114,14 +147,18 @@ class AgentSession:
             if hasattr(block, "text"):
                 text_parts.append(block.text)
             elif hasattr(block, "name"):
-                tool_calls.append({
-                    "name": block.name,
-                    "input": getattr(block, "input", {}),
-                })
+                tool_calls.append(
+                    {
+                        "name": block.name,
+                        "input": getattr(block, "input", {}),
+                    }
+                )
 
         # Add assistant response to history
         if text_parts:
-            self.messages.append({"role": "assistant", "content": "\n".join(text_parts)})
+            self.messages.append(
+                {"role": "assistant", "content": "\n".join(text_parts)}
+            )
 
         return AgentResponse(
             text="\n".join(text_parts),
