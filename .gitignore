@@ -6,7 +6,7 @@ archive/
 
 # CLAUDE
 .claude/
-
+CLAUDE.md
 
 # DEV
 .venv/
