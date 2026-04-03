@@ -1,25 +1,83 @@
-"""Minimal terminal REPL with `>` prompt and command suggestions."""
+"""Minimal terminal REPL with `>` prompt and command auto-completion."""
+
 from __future__ import annotations
 
 import asyncio
 import sys
 import time
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.styles import Style as PtStyle
+from prompt_toolkit.shortcuts import CompleteStyle
+from prompt_toolkit.shortcuts.choice_input import ChoiceInput
+
 from rich.console import Console
 from rich.status import Status
+from rich.style import Style as RichStyle
 
-from ..agent.agent import AgentSession
-from ..agent.settings import get_api_key, get_base_url, get_model, get_actual_model, load_settings, save_settings
+from ..agent.agent import AgentSession, StreamChunk
+from ..agent.settings import (
+    get_api_key,
+    get_base_url,
+    get_model,
+    get_actual_model,
+    load_settings,
+    save_settings,
+)
 from ..buddy import roll_buddy
 
 # Force UTF-8 encoding for Windows
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
+    # Enable ANSI support on Windows
+    import os
 
-console = Console(force_terminal=True)
+    os.system("")  # Enables ANSI escape sequences on Windows
 
-COMMANDS = ("/help", "/exit", "/model", "/config", "/buddy")
-MODEL_TIERS = ("sonnet", "opus", "haiku")  # Sonnet as default first
+console = Console(force_terminal=True, force_interactive=True)
+
+# Command definitions with descriptions
+COMMANDS = {
+    "/help": "Show available commands",
+    "/exit": "Exit REPL",
+    "/model": "Show or switch model",
+    "/config": "Show configuration",
+    "/buddy": "Roll a random buddy pet",
+}
+MODEL_TIERS = ("sonnet", "opus", "haiku")
+
+# Prompt-toolkit style - black background theme
+PT_STYLE = PtStyle.from_dict(
+    {
+        "prompt": "bold",
+        # Completion menu colors - black background
+        "completion-menu": "bg:#000000",
+        "completion-menu.completion": "bg:#000000 #e0e0e0",
+        "completion-menu.completion.selected": "bg:#000000 #00ff88 bold",
+        "completion-menu.meta": "bg:#000000 #808080",
+        "completion-menu.meta.selected": "bg:#000000 #00ff88",
+        # Scrollbar
+        "scrollbar": "bg:#1a1a1a",
+        "scrollbar.button": "bg:#404040",
+    }
+)
+
+
+class CommandCompleter(Completer):
+    """Auto-completer for slash commands."""
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        if text.startswith("/"):
+            for cmd, desc in COMMANDS.items():
+                if cmd.startswith(text):
+                    yield Completion(
+                        cmd,
+                        start_position=-len(text),
+                        display=f"{cmd}",
+                        display_meta=desc,
+                    )
 
 
 class StreamingStatus:
@@ -54,19 +112,22 @@ class StreamingStatus:
 
     def _print_status(self):
         """Print current status (overwrites previous)."""
+        import sys
+
         frame = self._frames[self._frame_idx % len(self._frames)]
         elapsed = self._format_time()
         phase = self._phases[self._phase_idx % len(self._phases)]
 
         if self.tokens > 0:
             tokens_str = self._format_tokens()
-            status = f"{frame} {phase}... ({elapsed} · ↑ {tokens_str} tokens)"
+            status = f"[bold cyan]{frame}[/] [dim]{phase}...[/] [dim]({elapsed} · ↑ {tokens_str} tokens)[/]"
         else:
-            status = f"{frame} {phase}... ({elapsed})"
+            status = f"[bold cyan]{frame}[/] [dim]{phase}...[/] [dim]({elapsed})[/]"
 
-        # Clear previous line content, then print new status
-        # Use \r to return to start, clear to end of line, then print
-        print(f"\r\x1b[K{status}", end="", flush=True)
+        # Clear line with raw ANSI, then render with Rich
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+        console.print(status, end="", highlight=False)
         self._last_status_len = len(status)
         self._frame_idx += 1
 
@@ -75,8 +136,13 @@ class StreamingStatus:
         while not self._stop_event.is_set():
             self._print_status()
             # Update phase every 5 seconds
-            if int(time.time() - self.start_time) % 5 == 0 and int(time.time() - self.start_time) > 0:
-                self._phase_idx = min(int((time.time() - self.start_time) // 5), len(self._phases) - 1)
+            if (
+                int(time.time() - self.start_time) % 5 == 0
+                and int(time.time() - self.start_time) > 0
+            ):
+                self._phase_idx = min(
+                    int((time.time() - self.start_time) // 5), len(self._phases) - 1
+                )
             await asyncio.sleep(0.2)
 
     def start(self):
@@ -90,14 +156,17 @@ class StreamingStatus:
 
     async def stop(self) -> tuple[float, int]:
         """Stop the animation and return stats."""
+        import sys
+
         self._stop_event.set()
         if self._task:
             try:
                 await asyncio.wait_for(self._task, timeout=0.5)
             except asyncio.TimeoutError:
                 pass
-        # Clear the status line
-        print("\r\x1b[K", end="", flush=True)
+        # Clear the status line with raw ANSI
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
         return time.time() - self.start_time, self.tokens
 
 
@@ -108,7 +177,9 @@ def _print_banner() -> None:
     status = "connected" if api_key else "mock-mode"
 
     # Loading animation (ASCII spinner for Windows compatibility)
-    with Status("[bold green]Initializing Nano-Claude...", console=console, spinner="line"):
+    with Status(
+        "[bold green]Initializing Nano-Claude...", console=console, spinner="line"
+    ):
         time.sleep(0.5)
 
     # Banner
@@ -119,61 +190,99 @@ def _print_banner() -> None:
 Nano-Claude (Only for Learning)
 {model} · {status}
 """
-    console.print(banner)
+    console.print(banner, highlight=False, style=RichStyle(bold=True, color="#8C6239"))
 
     if status == "mock-mode":
         console.print("[yellow]No API key. Running in mock mode.[/]")
         console.print("[dim]Edit ~/.nano-claude/settings.json[/]\n")
 
 
-def _resolve_command(line: str) -> tuple[str, list[str]]:
-    if not line.startswith("/"):
-        return line, []
-    # Show all commands when just "/" is entered
-    if line == "/":
-        return line, list(COMMANDS)
-    matches = [cmd for cmd in COMMANDS if cmd.startswith(line)]
-    if len(matches) == 1:
-        return matches[0], []
-    return line, matches
+def _create_prompt_session() -> PromptSession | None:
+    """Create prompt session with command completion, or None if non-interactive."""
+    if not sys.stdin.isatty():
+        return None  # Fall back to simple input in non-interactive mode
+    return PromptSession(
+        completer=CommandCompleter(),
+        style=PT_STYLE,
+        complete_while_typing=True,
+        complete_style=CompleteStyle.MULTI_COLUMN,
+    )
+
+
+async def _get_input(prompt_session: PromptSession | None) -> str:
+    """Get user input, using prompt_toolkit or simple input."""
+    if prompt_session is None:
+        # Non-interactive mode: use simple input
+        return input("> ").strip()
+    else:
+        # Interactive mode: use prompt_toolkit
+        raw = await prompt_session.prompt_async(">", multiline=False)
+        return raw.strip()
 
 
 def _print_buddy() -> None:
     """Roll and display buddy with gacha animation."""
+    from rich.panel import Panel
+
     # Gacha rolling animation (ASCII spinner)
     with Status("[bold cyan]Rolling buddy...", console=console, spinner="line"):
         time.sleep(0.6)
 
-    # Reveal dots
-    for _ in range(3):
-        console.print("[dim]...[/]", end="")
-        time.sleep(0.15)
-    console.print()
-
     buddy = roll_buddy()
 
-    # Result reveal with delay
-    console.print("=" * 40)
-    time.sleep(0.1)
+    # Rarity colors from design doc
+    rarity_colors = {
+        "common": "#99a5b2",
+        "uncommon": "#a4bf8d",
+        "rare": "#86c0d0",
+        "epic": "#b78aaf",
+        "legendary": "#ebca89",
+    }
+    rarity_color = rarity_colors.get(buddy.rarity.id, "#ffffff")
 
-    # Name with rarity color
-    rarity_color = buddy.rarity.color
-    console.print(f"[{rarity_color}]{buddy.species.name}[/{rarity_color}] [{buddy.rarity.name}]")
-    time.sleep(0.05)
+    console.print()
 
+    # Header with character name and rarity
+    console.print(
+        f"[bold {rarity_color}]{buddy.species.name}[/] [{rarity_color}]{buddy.rarity.name}[/]"
+    )
+
+    # Divine Beast and Weapon info
     if buddy.species.divine_beast:
-        console.print(f"Divine Beast: {buddy.species.divine_beast}")
-    console.print(f"Weapon: {buddy.species.signature_weapon}")
+        console.print(f"[dim]Divine Beast:[/] [cyan]{buddy.species.divine_beast}[/]")
+    console.print(f"[dim]Weapon:[/] [white]{buddy.species.signature_weapon}[/]")
 
+    # Shiny indicator
     if buddy.is_shiny:
-        time.sleep(0.1)
-        console.print("[bold yellow]SHINY![/]")
+        console.print()
+        console.print("[bold yellow]* SHINY! *[/]")
 
-    time.sleep(0.1)
-    console.print(buddy.render())
-    time.sleep(0.05)
-    console.print(buddy.attributes.summary())
-    console.print("=" * 40)
+    console.print()
+
+    # Combined panel with ASCII art and attributes
+    attr = buddy.attributes
+    health_filled = attr.health // 10
+    stamina_filled = attr.stamina // 10
+    skill_filled = attr.skill // 10
+
+    # Build attribute bars
+    health_bar = f"[red]{'+' * health_filled}{'-' * (10 - health_filled)}[/]"
+    stamina_bar = f"[green]{'#' * stamina_filled}{':' * (10 - stamina_filled)}[/]"
+    skill_bar = f"[blue]{'#' * skill_filled}{':' * (10 - skill_filled)}[/]"
+
+    # Combine art and attributes
+    combined_text = f"""{buddy.render()}
+
+[dim]Health[/]   {health_bar} {attr.health}
+[dim]Stamina[/]  {stamina_bar} {attr.stamina}
+[dim]Skill[/]    {skill_bar} {attr.skill}"""
+
+    buddy_panel = Panel(
+        combined_text, title=buddy.species.name, style=rarity_color, padding=(0, 1)
+    )
+    console.print(buddy_panel)
+
+    console.print()
 
 
 def _print_help() -> None:
@@ -186,71 +295,66 @@ def _print_help() -> None:
     console.print("  /buddy          - Roll a random buddy pet\n")
 
 
-async def _handle_model_async(arg: str = "") -> None:
-    """Handle /model command - show info or switch model tier."""
-    current_tier = get_model()
+# Choice menu style - dark theme with black background
+CHOICE_STYLE = PtStyle.from_dict(
+    {
+        "choice": "bg:#000000 #e0e0e0",
+        "choice.selected": "bg:#000000 #00ff88 bold",
+        "choice.unselected": "bg:#000000 #606060",
+        "prompt": "bg:#000000 #00ff88 bold",
+        "separator": "bg:#000000 #404040",
+        "frame": "bg:#000000 #606060",
+        "frame.label": "bg:#000000 #ffffff",
+    }
+)
+
+
+def _handle_model_sync(arg: str = "") -> bool:
+    """Handle /model command synchronously. Returns True if should exit."""
+    current_model = get_model()
     url = get_base_url() or "default"
-    actual_model = get_actual_model(current_tier)
 
-    if arg:
-        # Direct switch by tier name
-        if arg in MODEL_TIERS:
-            new_tier = arg
-        else:
-            console.print(f"[red]Unknown tier: {arg}. Use: {', '.join(MODEL_TIERS)}[/]\n")
-            return
-
-        settings = load_settings()
-        settings.env["NANO_CLAUDE_MODEL"] = new_tier
-        save_settings(settings)
-        new_actual = get_actual_model(new_tier)
-        console.print(f"[green]Switched to {new_tier} ({new_actual})[/]\n")
-        return
-
-    # Show current and available options
-    console.print(f"\n[bold]Current tier:[/] {current_tier}")
-    console.print(f"[bold]Actual model:[/] {actual_model}")
+    # Show current configuration
+    console.print(f"\n[bold]Current model:[/] {current_model}")
     console.print(f"[bold]URL:[/]         {url}\n")
 
-    console.print("[bold]Select model tier:[/]")
+    # Build options for choice menu with numbers
+    options = []
     for i, tier in enumerate(MODEL_TIERS, 1):
         model_name = get_actual_model(tier)
-        marker = " (current)" if tier == current_tier else ""
-        console.print(f"  {i}. {tier} ({model_name}){marker}")
-
-    console.print("\n[dim]Enter number or tier name, or press Enter to cancel[/]")
+        label = f"{i}. {tier} → {model_name}"
+        if model_name == current_model:
+            label += " (active)"
+        options.append((tier, label))
 
     try:
-        choice = input("> ").strip()
-        if not choice:
+        # Use prompt_toolkit choice for selection
+        selected = choice(
+            message="Select model tier:",
+            options=options,
+            style=CHOICE_STYLE,
+            show_frame=True,
+        )
+
+        if selected is None:
             console.print("[dim]Cancelled[/]\n")
-            return
+            return False
 
-        if choice.isdigit():
-            idx = int(choice) - 1
-            if 0 <= idx < len(MODEL_TIERS):
-                new_tier = MODEL_TIERS[idx]
-            else:
-                console.print("[red]Invalid number[/]\n")
-                return
-        elif choice in MODEL_TIERS:
-            new_tier = choice
-        else:
-            console.print(f"[red]Unknown: {choice}[/]\n")
-            return
-
-        if new_tier == current_tier:
+        new_model = get_actual_model(selected)
+        if new_model == current_model:
             console.print("[dim]No change[/]\n")
-            return
+            return False
 
+        # Update settings.env with new default model
         settings = load_settings()
-        settings.env["NANO_CLAUDE_MODEL"] = new_tier
+        settings.env["NANO_CLAUDE_DEFAULT_SONNET_MODEL"] = new_model
         save_settings(settings)
-        new_actual = get_actual_model(new_tier)
-        console.print(f"[green]Switched to {new_tier} ({new_actual})[/]\n")
+        console.print(f"[green]Switched default model to {new_model}[/]\n")
+        return False
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         console.print("[dim]Cancelled[/]\n")
+        return False
 
 
 def _parse_command(line: str) -> tuple[str, str]:
@@ -261,7 +365,36 @@ def _parse_command(line: str) -> tuple[str, str]:
     return cmd, arg
 
 
+def _select_command() -> str | None:
+    """Show command selection menu. Returns selected command or None."""
+    # Build options for choice menu with numbers
+    options = []
+    for i, (cmd, desc) in enumerate(COMMANDS.items(), 1):
+        label = f"{i}. {desc}"
+        options.append((cmd, label))
+
+    try:
+        selected = choice(
+            message="Select command:",
+            options=options,
+            style=CHOICE_STYLE,
+            show_frame=True,
+        )
+        return selected
+    except (KeyboardInterrupt, EOFError):
+        return None
+
+
 async def _handle_local_command(line: str) -> tuple[bool, bool]:
+    """Handle local command. Returns (handled, should_exit)."""
+    # If just "/" entered, show command selection menu
+    if line == "/":
+        selected = _select_command()
+        if selected:
+            # Recursively handle the selected command
+            return await _handle_local_command(selected)
+        return True, False
+
     cmd, arg = _parse_command(line)
 
     if cmd in {"/exit", "/quit"}:
@@ -270,7 +403,7 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
         _print_help()
         return True, False
     if cmd == "/model":
-        await _handle_model_async(arg)
+        _handle_model_sync(arg)
         return True, False
     if cmd == "/config":
         tier = get_model()
@@ -286,49 +419,67 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
     return False, False
 
 
-async def _run_connected(session: AgentSession) -> None:
+async def _run_connected(agent_session: AgentSession) -> None:
+    """Run connected REPL with prompt-toolkit."""
+    prompt_session = _create_prompt_session()
+
     while True:
         try:
-            raw = input("> ").strip()
+            raw = await _get_input(prompt_session)
         except (EOFError, KeyboardInterrupt):
-            print()
+            console.print()
             break
         if not raw:
             continue
-        line, matches = _resolve_command(raw)
-        if matches:
-            console.print(f"[dim]Suggestions:[/] {' '.join(matches)}")
-            continue
-        handled, should_exit = await _handle_local_command(line)
+
+        handled, should_exit = await _handle_local_command(raw)
         if should_exit:
             break
         if handled:
             continue
-        if line.startswith("/"):
-            console.print(f"[red]Unknown:[/] {line}")
+        if raw.startswith("/"):
+            console.print(f"[red]Unknown command:[/] {raw}")
             continue
+
         try:
             # Start streaming status animation
             status = StreamingStatus()
             status.start()
 
-            # Stream response
+            # Stream response with thinking support
             first_chunk = True
+            in_thinking = False
             total_chars = 0
-            async for chunk in session.send_stream(line):
+            async for chunk in agent_session.send_stream(raw):
                 if first_chunk:
                     # Stop animation and print newline before output
                     await status.stop()
-                    print()
+                    console.print()
                     first_chunk = False
-                total_chars += len(chunk)
-                print(chunk, end="", flush=True)
+
+                if chunk.type == "thinking":
+                    if not in_thinking:
+                        # Start thinking block with dim style
+                        console.print("[dim]∴ Thinking…[/]")
+                        in_thinking = True
+                    console.print(chunk.content, end="", style="dim")
+                else:
+                    if in_thinking:
+                        # End thinking block with separator
+                        console.print("\n")
+                        in_thinking = False
+                    total_chars += len(chunk.content)
+                    console.print(chunk.content, end="")
+
+            # Close thinking block if still open
+            if in_thinking:
+                console.print()
 
             # If we never got any chunks, still stop the animation
             if first_chunk:
                 await status.stop()
 
-            print()
+            console.print()
 
             # Show summary
             elapsed = time.time() - status.start_time
@@ -346,32 +497,32 @@ async def _run_connected(session: AgentSession) -> None:
             else:
                 tokens_str = str(approx_tokens)
 
-            console.print(f"[dim]Completed in {time_str} · ~{tokens_str} tokens[/]")
+            console.print(f"[dim]* Completed in {time_str} · ~{tokens_str} tokens[/]")
 
         except Exception as exc:  # pragma: no cover - runtime guard
             console.print(f"[red]Error:[/] {exc}")
 
 
 async def _run_mock() -> None:
+    """Run mock REPL with prompt-toolkit."""
+    prompt_session = _create_prompt_session()
+
     while True:
         try:
-            raw = input("> ").strip()
+            raw = await _get_input(prompt_session)
         except (EOFError, KeyboardInterrupt):
-            print()
+            console.print()
             break
         if not raw:
             continue
-        line, matches = _resolve_command(raw)
-        if matches:
-            console.print(f"[dim]Suggestions:[/] {' '.join(matches)}")
-            continue
-        handled, should_exit = await _handle_local_command(line)
+
+        handled, should_exit = await _handle_local_command(raw)
         if should_exit:
             break
         if handled:
             continue
-        if line.startswith("/"):
-            console.print(f"[red]Unknown:[/] {line}")
+        if raw.startswith("/"):
+            console.print(f"[red]Unknown command:[/] {raw}")
             continue
         console.print(f"[dim][Mock][/] {raw}")
 

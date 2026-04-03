@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .deferred_init import DeferredInitResult, run_deferred_init
-from .prefetch import PrefetchResult, start_keychain_prefetch, start_mdm_raw_read, start_project_scan
+from .prefetch import (
+    PrefetchResult,
+    start_keychain_prefetch,
+    start_mdm_raw_read,
+    start_project_scan,
+)
 
 
 @dataclass(frozen=True)
@@ -14,16 +19,16 @@ class WorkspaceSetup:
     python_version: str
     implementation: str
     platform_name: str
-    test_command: str = 'python3 -m unittest discover -s tests -v'
+    test_command: str = "python3 -m unittest discover -s tests -v"
 
     def startup_steps(self) -> tuple[str, ...]:
         return (
-            'start top-level prefetch side effects',
-            'build workspace context',
-            'load mirrored command snapshot',
-            'load mirrored tool snapshot',
-            'prepare parity audit hooks',
-            'apply trust-gated deferred init',
+            "start top-level prefetch side effects",
+            "build workspace context",
+            "load mirrored command snapshot",
+            "load mirrored tool snapshot",
+            "prepare parity audit hooks",
+            "apply trust-gated deferred init",
         )
 
 
@@ -37,25 +42,25 @@ class SetupReport:
 
     def as_markdown(self) -> str:
         lines = [
-            '# Setup Report',
-            '',
-            f'- Python: {self.setup.python_version} ({self.setup.implementation})',
-            f'- Platform: {self.setup.platform_name}',
-            f'- Trusted mode: {self.trusted}',
-            f'- CWD: {self.cwd}',
-            '',
-            'Prefetches:',
-            *(f'- {prefetch.name}: {prefetch.detail}' for prefetch in self.prefetches),
-            '',
-            'Deferred init:',
+            "# Setup Report",
+            "",
+            f"- Python: {self.setup.python_version} ({self.setup.implementation})",
+            f"- Platform: {self.setup.platform_name}",
+            f"- Trusted mode: {self.trusted}",
+            f"- CWD: {self.cwd}",
+            "",
+            "Prefetches:",
+            *(f"- {prefetch.name}: {prefetch.detail}" for prefetch in self.prefetches),
+            "",
+            "Deferred init:",
             *self.deferred_init.as_lines(),
         ]
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 def build_workspace_setup() -> WorkspaceSetup:
     return WorkspaceSetup(
-        python_version='.'.join(str(part) for part in sys.version_info[:3]),
+        python_version=".".join(str(part) for part in sys.version_info[:3]),
         implementation=platform.python_implementation(),
         platform_name=platform.platform(),
     )

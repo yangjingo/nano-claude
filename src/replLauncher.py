@@ -2,4 +2,4 @@ from __future__ import annotations
 
 
 def build_repl_banner() -> str:
-    return 'Python porting REPL is not interactive yet; use `python3 -m src.cli.main summary` instead.'
+    return "Python porting REPL is not interactive yet; use `python3 -m src.cli.main summary` instead."

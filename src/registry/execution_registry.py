@@ -46,6 +46,11 @@ class ExecutionRegistry:
 
 def build_execution_registry() -> ExecutionRegistry:
     return ExecutionRegistry(
-        commands=tuple(MirroredCommand(module.name, module.source_hint) for module in PORTED_COMMANDS),
-        tools=tuple(MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS),
+        commands=tuple(
+            MirroredCommand(module.name, module.source_hint)
+            for module in PORTED_COMMANDS
+        ),
+        tools=tuple(
+            MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS
+        ),
     )

@@ -16,7 +16,7 @@ class PortingModule:
     name: str
     responsibility: str
     source_hint: str
-    status: str = 'planned'
+    status: str = "planned"
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class UsageSummary:
     input_tokens: int = 0
     output_tokens: int = 0
 
-    def add_turn(self, prompt: str, output: str) -> 'UsageSummary':
+    def add_turn(self, prompt: str, output: str) -> "UsageSummary":
         return UsageSummary(
             input_tokens=self.input_tokens + len(prompt.split()),
             output_tokens=self.output_tokens + len(output.split()),
@@ -44,6 +44,6 @@ class PortingBacklog:
 
     def summary_lines(self) -> list[str]:
         return [
-            f'- {module.name} [{module.status}] — {module.responsibility} (from {module.source_hint})'
+            f"- {module.name} [{module.status}] — {module.responsibility} (from {module.source_hint})"
             for module in self.modules
         ]

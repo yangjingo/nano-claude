@@ -13,10 +13,10 @@ class DeferredInitResult:
 
     def as_lines(self) -> tuple[str, ...]:
         return (
-            f'- plugin_init={self.plugin_init}',
-            f'- skill_init={self.skill_init}',
-            f'- mcp_prefetch={self.mcp_prefetch}',
-            f'- session_hooks={self.session_hooks}',
+            f"- plugin_init={self.plugin_init}",
+            f"- skill_init={self.skill_init}",
+            f"- mcp_prefetch={self.mcp_prefetch}",
+            f"- session_hooks={self.session_hooks}",
         )
 
 

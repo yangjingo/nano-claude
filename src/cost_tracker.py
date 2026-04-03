@@ -10,4 +10,4 @@ class CostTracker:
 
     def record(self, label: str, units: int) -> None:
         self.total_units += units
-        self.events.append(f'{label}:{units}')
+        self.events.append(f"{label}:{units}")

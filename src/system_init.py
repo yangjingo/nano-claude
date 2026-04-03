@@ -10,14 +10,14 @@ def build_system_init_message(trusted: bool = True) -> str:
     commands = get_commands()
     tools = get_tools()
     lines = [
-        '# System Init',
-        '',
-        f'Trusted: {setup.trusted}',
-        f'Built-in command names: {len(built_in_command_names())}',
-        f'Loaded command entries: {len(commands)}',
-        f'Loaded tool entries: {len(tools)}',
-        '',
-        'Startup steps:',
-        *(f'- {step}' for step in setup.setup.startup_steps()),
+        "# System Init",
+        "",
+        f"Trusted: {setup.trusted}",
+        f"Built-in command names: {len(built_in_command_names())}",
+        f"Loaded command entries: {len(commands)}",
+        f"Loaded tool entries: {len(tools)}",
+        "",
+        "Startup steps:",
+        *(f"- {step}" for step in setup.setup.startup_steps()),
     ]
-    return '\n'.join(lines)
+    return "\n".join(lines)

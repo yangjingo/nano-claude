@@ -15,14 +15,14 @@ class ToolPool:
 
     def as_markdown(self) -> str:
         lines = [
-            '# Tool Pool',
-            '',
-            f'Simple mode: {self.simple_mode}',
-            f'Include MCP: {self.include_mcp}',
-            f'Tool count: {len(self.tools)}',
+            "# Tool Pool",
+            "",
+            f"Simple mode: {self.simple_mode}",
+            f"Include MCP: {self.include_mcp}",
+            f"Tool count: {len(self.tools)}",
         ]
-        lines.extend(f'- {tool.name} — {tool.source_hint}' for tool in self.tools[:15])
-        return '\n'.join(lines)
+        lines.extend(f"- {tool.name} — {tool.source_hint}" for tool in self.tools[:15])
+        return "\n".join(lines)
 
 
 def assemble_tool_pool(
@@ -31,7 +31,11 @@ def assemble_tool_pool(
     permission_context: ToolPermissionContext | None = None,
 ) -> ToolPool:
     return ToolPool(
-        tools=get_tools(simple_mode=simple_mode, include_mcp=include_mcp, permission_context=permission_context),
+        tools=get_tools(
+            simple_mode=simple_mode,
+            include_mcp=include_mcp,
+            permission_context=permission_context,
+        ),
         simple_mode=simple_mode,
         include_mcp=include_mcp,
     )
