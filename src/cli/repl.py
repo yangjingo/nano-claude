@@ -309,8 +309,8 @@ CHOICE_STYLE = PtStyle.from_dict(
 )
 
 
-def _handle_model_sync(arg: str = "") -> bool:
-    """Handle /model command synchronously. Returns True if should exit."""
+async def _handle_model_async(arg: str = "") -> None:
+    """Handle /model command asynchronously."""
     current_model = get_model()
     url = get_base_url() or "default"
 
@@ -328,33 +328,32 @@ def _handle_model_sync(arg: str = "") -> bool:
         options.append((tier, label))
 
     try:
-        # Use prompt_toolkit choice for selection
-        selected = choice(
+        # Use ChoiceInput.prompt_async for async selection
+        choice_dialog = ChoiceInput(
             message="Select model tier:",
             options=options,
             style=CHOICE_STYLE,
             show_frame=True,
         )
+        selected = await choice_dialog.prompt_async()
 
         if selected is None:
             console.print("[dim]Cancelled[/]\n")
-            return False
+            return
 
         new_model = get_actual_model(selected)
         if new_model == current_model:
             console.print("[dim]No change[/]\n")
-            return False
+            return
 
         # Update settings.env with new default model
         settings = load_settings()
         settings.env["NANO_CLAUDE_DEFAULT_SONNET_MODEL"] = new_model
         save_settings(settings)
         console.print(f"[green]Switched default model to {new_model}[/]\n")
-        return False
 
     except (KeyboardInterrupt, EOFError):
         console.print("[dim]Cancelled[/]\n")
-        return False
 
 
 def _parse_command(line: str) -> tuple[str, str]:
@@ -365,7 +364,7 @@ def _parse_command(line: str) -> tuple[str, str]:
     return cmd, arg
 
 
-def _select_command() -> str | None:
+async def _select_command() -> str | None:
     """Show command selection menu. Returns selected command or None."""
     # Build options for choice menu with numbers
     options = []
@@ -374,12 +373,13 @@ def _select_command() -> str | None:
         options.append((cmd, label))
 
     try:
-        selected = choice(
+        choice_dialog = ChoiceInput(
             message="Select command:",
             options=options,
             style=CHOICE_STYLE,
             show_frame=True,
         )
+        selected = await choice_dialog.prompt_async()
         return selected
     except (KeyboardInterrupt, EOFError):
         return None
@@ -389,7 +389,7 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
     """Handle local command. Returns (handled, should_exit)."""
     # If just "/" entered, show command selection menu
     if line == "/":
-        selected = _select_command()
+        selected = await _select_command()
         if selected:
             # Recursively handle the selected command
             return await _handle_local_command(selected)
@@ -403,7 +403,7 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
         _print_help()
         return True, False
     if cmd == "/model":
-        _handle_model_sync(arg)
+        await _handle_model_async(arg)
         return True, False
     if cmd == "/config":
         tier = get_model()
@@ -426,19 +426,23 @@ async def _run_connected(agent_session: AgentSession) -> None:
     while True:
         try:
             raw = await _get_input(prompt_session)
-        except (EOFError, KeyboardInterrupt):
-            console.print()
+        except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
+            console.print("\n[dim]Goodbye![/]")
             break
         if not raw:
             continue
 
-        handled, should_exit = await _handle_local_command(raw)
-        if should_exit:
-            break
-        if handled:
-            continue
-        if raw.startswith("/"):
-            console.print(f"[red]Unknown command:[/] {raw}")
+        try:
+            handled, should_exit = await _handle_local_command(raw)
+            if should_exit:
+                break
+            if handled:
+                continue
+            if raw.startswith("/"):
+                console.print(f"[red]Unknown command:[/] {raw}")
+                continue
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            console.print("\n[dim]Cancelled[/]")
             continue
 
         try:
@@ -499,6 +503,16 @@ async def _run_connected(agent_session: AgentSession) -> None:
 
             console.print(f"[dim]* Completed in {time_str} · ~{tokens_str} tokens[/]")
 
+        except asyncio.CancelledError:
+            # Handle Ctrl+C during streaming
+            if "status" in locals():
+                await status.stop()
+            console.print("\n[dim]Interrupted[/]")
+        except KeyboardInterrupt:
+            # Handle Ctrl+C during streaming
+            if "status" in locals():
+                await status.stop()
+            console.print("\n[dim]Interrupted[/]")
         except Exception as exc:  # pragma: no cover - runtime guard
             console.print(f"[red]Error:[/] {exc}")
 
@@ -510,21 +524,25 @@ async def _run_mock() -> None:
     while True:
         try:
             raw = await _get_input(prompt_session)
-        except (EOFError, KeyboardInterrupt):
-            console.print()
+        except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
+            console.print("\n[dim]Goodbye![/]")
             break
         if not raw:
             continue
 
-        handled, should_exit = await _handle_local_command(raw)
-        if should_exit:
-            break
-        if handled:
+        try:
+            handled, should_exit = await _handle_local_command(raw)
+            if should_exit:
+                break
+            if handled:
+                continue
+            if raw.startswith("/"):
+                console.print(f"[red]Unknown command:[/] {raw}")
+                continue
+            console.print(f"[dim][Mock][/] {raw}")
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            console.print("\n[dim]Cancelled[/]")
             continue
-        if raw.startswith("/"):
-            console.print(f"[red]Unknown command:[/] {raw}")
-            continue
-        console.print(f"[dim][Mock][/] {raw}")
 
 
 def run_repl() -> int:
@@ -541,5 +559,8 @@ def run_repl() -> int:
         finally:
             await session.stop()
 
-    asyncio.run(runner())
+    try:
+        asyncio.run(runner())
+    except KeyboardInterrupt:
+        pass  # Already handled in _run_connected
     return 0
