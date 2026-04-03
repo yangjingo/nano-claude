@@ -301,7 +301,9 @@ class TestRarityExtraction(unittest.TestCase):
                 break
 
         expected = {"common", "uncommon", "rare", "epic", "legendary"}
-        self.assertEqual(found_rarities, expected, f"Missing rarities: {expected - found_rarities}")
+        self.assertEqual(
+            found_rarities, expected, f"Missing rarities: {expected - found_rarities}"
+        )
 
     def test_shiny_can_be_found(self):
         """Test that shiny can be found (may take many rolls)."""
@@ -318,7 +320,10 @@ class TestRarityExtraction(unittest.TestCase):
 
         # Note: This test has a small chance of false failure (0.99^500 ≈ 0.6%)
         # In practice, we should find at least one shiny in 500 rolls
-        self.assertTrue(found_shiny, f"Shiny not found in {max_rolls} rolls (statistically unlikely)")
+        self.assertTrue(
+            found_shiny,
+            f"Shiny not found in {max_rolls} rolls (statistically unlikely)",
+        )
 
     def test_all_colors_defined(self):
         """All rarities have valid Rich colors (hex or named)."""
@@ -327,23 +332,33 @@ class TestRarityExtraction(unittest.TestCase):
 
         # Rich color names that are valid
         valid_named_colors = {
-            "white", "black", "red", "green", "yellow", "blue",
-            "magenta", "cyan", "bright_red", "bright_green",
-            "bright_yellow", "bright_blue", "bright_magenta",
-            "bright_cyan", "bright_white",
+            "white",
+            "black",
+            "red",
+            "green",
+            "yellow",
+            "blue",
+            "magenta",
+            "cyan",
+            "bright_red",
+            "bright_green",
+            "bright_yellow",
+            "bright_blue",
+            "bright_magenta",
+            "bright_cyan",
+            "bright_white",
         }
 
         # Hex color pattern (#RRGGBB)
-        hex_pattern = re.compile(r'^#[0-9a-fA-F]{6}$')
+        hex_pattern = re.compile(r"^#[0-9a-fA-F]{6}$")
 
         for rarity in RARITIES:
             is_valid = (
-                rarity.color in valid_named_colors or
-                hex_pattern.match(rarity.color) is not None
+                rarity.color in valid_named_colors
+                or hex_pattern.match(rarity.color) is not None
             )
             self.assertTrue(
-                is_valid,
-                f"Invalid color '{rarity.color}' for rarity '{rarity.name}'"
+                is_valid, f"Invalid color '{rarity.color}' for rarity '{rarity.name}'"
             )
 
     def test_rarity_distribution(self):

@@ -115,6 +115,7 @@ def roll_buddy(rng: Mulberry32 | None = None) -> Buddy:
     if rng is None:
         import random
         import time
+
         # Combine multiple entropy sources for better randomness
         seed = int(time.time() * 1000000) ^ random.randint(0, 0xFFFFFFFF)
         rng = Mulberry32(seed & 0xFFFFFFFF)

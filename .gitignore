@@ -6,3 +6,9 @@ archive/
 
 # CLAUDE
 .claude/
+
+
+# DEV
+.venv/
+.pytest_cache/
+.uv-cache/

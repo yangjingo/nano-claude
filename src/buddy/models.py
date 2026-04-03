@@ -10,10 +10,11 @@ from typing import Literal
 @dataclass(frozen=True)
 class PetSpecies:
     """Pet species definition with ASCII art."""
+
     id: str
     name: str
     ascii_art: str
-    divine_beast: str = ""      # 四神兽名称
+    divine_beast: str = ""  # 四神兽名称
     signature_weapon: str = ""  # 专属武器
     animation_frames: tuple[str, ...] = field(default_factory=tuple)
 
@@ -27,15 +28,17 @@ class PetSpecies:
 @dataclass(frozen=True)
 class Rarity:
     """Rarity tier definition."""
+
     id: str
     name: str
     weight: int  # For weighted selection
-    color: str   # Rich color code
+    color: str  # Rich color code
 
 
 @dataclass(frozen=True)
 class EyeStyle:
     """Eye style definition."""
+
     id: str
     symbol: str
     name: str = ""
@@ -44,6 +47,7 @@ class EyeStyle:
 @dataclass(frozen=True)
 class Hat:
     """Hat/accessory definition."""
+
     id: str
     name: str
     ascii_art: str
@@ -52,9 +56,10 @@ class Hat:
 @dataclass(frozen=True)
 class PetAttributes:
     """Zelda-style combat attributes."""
-    health: int     # 血条 (生命值) 1-100
-    stamina: int    # 体力 (耐力值) 1-100
-    skill: int      # 技能 (战斗技巧) 1-100
+
+    health: int  # 血条 (生命值) 1-100
+    stamina: int  # 体力 (耐力值) 1-100
+    skill: int  # 技能 (战斗技巧) 1-100
 
     def to_bar(self, attr: str, width: int = 10) -> str:
         """Render attribute as progress bar."""
@@ -84,6 +89,7 @@ Skill   {self.to_bar('skill')} {self.skill}"""
 @dataclass
 class Buddy:
     """Complete buddy pet instance."""
+
     id: str
     user_seed: int
     species: PetSpecies
