@@ -304,9 +304,11 @@ src/
 │   ├── main.py            # --resume 参数
 │   └── repl.py            # /resume (picker), /save, /clear, /dream
 └── memory/
-    ├── notes.py           # SessionNotes (已有)
-    ├── dreamer.py         # BloodMoon (已有, 读 transcripts)
-    └── models.py          # DreamResult (+files, +updated_names)
+    ├── notes.py           # SessionNotes
+    ├── dreamer.py         # BloodMoon (读 transcripts)
+    ├── keywords.py        # KeywordMatcher (信号匹配)
+    ├── scheduler.py       # CronScheduler (自动 dream)
+    └── models.py          # DreamResult (含 files, updated_names)
 ```
 
 ---

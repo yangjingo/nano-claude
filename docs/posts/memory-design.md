@@ -104,7 +104,7 @@ class ContentReplacementState:
 
 ## L3: 会话笔记
 
-> 计划实现。
+> 已实现 (`src/memory/notes.py`)。
 
 边聊边记，避免窗口快满时才匆忙摘要。
 
@@ -370,6 +370,8 @@ class DreamResult:
     updated: int = 0
     merged: int = 0
     pruned: int = 0
+    files: list[str] = field(default_factory=list)       # 被更新的 memory 文件
+    updated_names: list[str] = field(default_factory=list) # 信号名称
 
     def summary(self) -> str:
         parts = [f"{self.total} memories scanned"]
@@ -407,16 +409,16 @@ class CacheSafeParams:
 
 ```
 src/memory/
-├── __init__.py        # Module exports
+├── __init__.py        # Module exports + 文件系统读写
 ├── models.py          # MemoryEntry, MemoryType, MemoryIndex, DreamResult
-├── storage.py         # LocalStorage: 文件系统读写
-├── notes.py           # SessionNotes: L3 会话笔记（新增）
-├── dreamer.py         # BloodMoon: L6 血月巩固引擎（重写）
-├── keywords.py        # KeywordMatcher: 关键词匹配规则（新增）
-└── scheduler.py       # CronScheduler: 血月定时触发（新增）
+├── notes.py           # SessionNotes: L3 会话笔记
+├── dreamer.py         # BloodMoon: L6 血月巩固引擎
+├── keywords.py        # KeywordMatcher: 关键词匹配规则
+└── scheduler.py       # CronScheduler: 血月定时触发
 
 tests/
-└── test_memory.py     # Unit tests
+├── test_session_mechanism.py  # Session 存储测试
+└── mock_sessions.py           # Mock 会话数据
 ```
 
 ---
@@ -505,7 +507,7 @@ print(result.summary())
 |------|------|------------------|----------------------|
 | L1 | 大输出落盘 | >100KB → 磁盘 + 2KB 预览 | 计划实现 |
 | L2 | 缓存微压缩 | cache_edits API | API 依赖 |
-| L3 | 会话笔记 | 9 模块模板 + 异步更新 | 计划实现 |
+| L3 | 会话笔记 | 9 模块模板 + 异步更新 | 已实现 (notes.py) |
 | L4 | 摘要熔断 | <13K 触发 + scratchpad | 概念参考 |
 | L5 | 持久化 | ~/.claude/projects/memory/ | ~/.nano_claude/memory/ |
 | L5 | 文件格式 | YAML frontmatter + MD | 相同 |
