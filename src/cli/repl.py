@@ -44,6 +44,10 @@ COMMANDS = {
     "/model": "Show or switch model",
     "/config": "Show configuration",
     "/buddy": "Roll a random buddy pet",
+    "/memory": "List, show, or manage memories",
+    "/dream": "Run blood moon consolidation",
+    "/sessions": "List saved sessions",
+    "/resume": "Resume a previous session",
 }
 MODEL_TIERS = ("sonnet", "opus", "haiku")
 
@@ -67,8 +71,11 @@ PT_STYLE = PtStyle.from_dict(
 class CommandCompleter(Completer):
     """Auto-completer for slash commands."""
 
+    # Sub-command completions for /memory
+    MEMORY_SUBCOMMANDS = ("list", "show", "delete", "summary")
+
     def get_completions(self, document, complete_event):
-        text = document.text_before_cursor
+        text = document.text_before_cursor.strip()
         if text.startswith("/"):
             for cmd, desc in COMMANDS.items():
                 if cmd.startswith(text):
@@ -78,6 +85,16 @@ class CommandCompleter(Completer):
                         display=f"{cmd}",
                         display_meta=desc,
                     )
+            # /memory subcommands
+            if text.startswith("/memory "):
+                partial = text[len("/memory "):]
+                for sub in self.MEMORY_SUBCOMMANDS:
+                    if sub.startswith(partial):
+                        yield Completion(
+                            sub,
+                            start_position=-len(partial),
+                            display=f"/memory {sub}",
+                        )
 
 
 class StreamingStatus:
@@ -88,15 +105,13 @@ class StreamingStatus:
         self.tokens = 0
         self._stop_event = asyncio.Event()
         self._task = None
-        # Animation frames
-        self._frames = ["*", ".", ":", "+", "x"]
+        import random
+        self._frames = random.sample(["*", ".", ":", "+", "~", "o"], 3)
         self._frame_idx = 0
         self._phase_idx = 0
-        self._phases = ["Thinking", "Grooving", "Composing", "Processing"]
-        self._last_status_len = 0
+        self._phases = ["Thinking", "Processing"]
 
     def _format_time(self) -> str:
-        """Format elapsed time."""
         elapsed = time.time() - self.start_time
         if elapsed < 60:
             return f"{int(elapsed)}s"
@@ -105,48 +120,37 @@ class StreamingStatus:
         return f"{mins}m {secs}s"
 
     def _format_tokens(self) -> str:
-        """Format token count."""
         if self.tokens < 1000:
             return str(self.tokens)
         return f"{self.tokens / 1000:.1f}k"
 
     def _print_status(self):
-        """Print current status (overwrites previous)."""
         import sys
 
-        frame = self._frames[self._frame_idx % len(self._frames)]
         elapsed = self._format_time()
+        frame = self._frames[self._frame_idx % len(self._frames)]
+        self._frame_idx += 1
         phase = self._phases[self._phase_idx % len(self._phases)]
 
         if self.tokens > 0:
             tokens_str = self._format_tokens()
-            status = f"[bold cyan]{frame}[/] [dim]{phase}...[/] [dim]({elapsed} · ↑ {tokens_str} tokens)[/]"
+            rich_str = f"[bold cyan]{frame}[/] [dim]{phase}... ({elapsed} · {tokens_str} tokens)[/]"
         else:
-            status = f"[bold cyan]{frame}[/] [dim]{phase}...[/] [dim]({elapsed})[/]"
+            rich_str = f"[bold cyan]{frame}[/] [dim]{phase}... ({elapsed})[/]"
 
-        # Clear line with raw ANSI, then render with Rich
-        sys.stdout.write("\r\033[K")
+        # Rich render → single atomic \r overwrite (no flicker)
+        rendered = console.render_str(rich_str, highlight=False)
+        sys.stdout.write(f"\r{rendered}\033[K")
         sys.stdout.flush()
-        console.print(status, end="", highlight=False)
-        self._last_status_len = len(status)
-        self._frame_idx += 1
 
     async def _animate(self):
-        """Animation loop."""
         while not self._stop_event.is_set():
             self._print_status()
-            # Update phase every 5 seconds
-            if (
-                int(time.time() - self.start_time) % 5 == 0
-                and int(time.time() - self.start_time) > 0
-            ):
-                self._phase_idx = min(
-                    int((time.time() - self.start_time) // 5), len(self._phases) - 1
-                )
-            await asyncio.sleep(0.2)
+            if (time.time() - self.start_time) > 5:
+                self._phase_idx = 1
+            await asyncio.sleep(0.3)
 
     def start(self):
-        """Start the animation."""
         self._task = asyncio.create_task(self._animate())
 
     def update_tokens(self, new_tokens: int):
@@ -292,7 +296,15 @@ def _print_help() -> None:
     console.print("  /model          - Show current model and available options")
     console.print("  /model <tier>   - Switch to specified tier (sonnet/opus/haiku)")
     console.print("  /config         - Show full configuration")
-    console.print("  /buddy          - Roll a random buddy pet\n")
+    console.print("  /buddy          - Roll a random buddy pet")
+    console.print("  /memory         - List all memories")
+    console.print("  /memory show N  - Show memory by name")
+    console.print("  /memory delete N- Delete a memory")
+    console.print("  /memory summary - Memory statistics")
+    console.print("  /dream          - Run blood moon consolidation")
+    console.print("  /sessions       - List saved sessions")
+    console.print("  /resume         - Resume latest session")
+    console.print("  /resume <id>    - Resume specific session\n")
 
 
 # Choice menu style - dark theme with black background
@@ -416,11 +428,134 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
     if cmd == "/buddy":
         _print_buddy()
         return True, False
+    if cmd == "/memory":
+        _handle_memory(arg)
+        return True, False
+    if cmd == "/dream":
+        await _handle_dream()
+        return True, False
+    if cmd == "/sessions":
+        _handle_sessions()
+        return True, False
+    if cmd == "/resume":
+        return True, True  # Signal exit — caller relaunches with --resume
     return False, False
 
 
+def _handle_memory(arg: str) -> None:
+    """Handle /memory command."""
+    from ..memory import load_memories, get_memory, delete_memory, memory_summary, LocalStorage
+
+    subcmd = arg.strip().split()[0] if arg.strip() else "list"
+    rest = arg.strip().split(None, 1)[1] if len(arg.strip().split(None, 1)) > 1 else ""
+
+    if subcmd == "list":
+        entries = load_memories()
+        if not entries:
+            console.print("\n[dim]No memories stored yet.[/]\n")
+            return
+        console.print(f"\n[bold]Memories ({len(entries)}):[/]\n")
+        for e in entries:
+            console.print(
+                f"  [cyan]{e.name}[/] [dim]({e.type.value})[/] {e.description}"
+            )
+        console.print()
+
+    elif subcmd == "show":
+        if not rest:
+            console.print("[red]Usage: /memory show <name>[/]\n")
+            return
+        entry = get_memory(rest)
+        if not entry:
+            console.print(f"[red]Memory not found:[/] {rest}\n")
+            return
+        console.print(f"\n[bold cyan]{entry.name}[/] [dim]({entry.type.value})[/]")
+        console.print(f"[dim]{entry.description}[/]")
+        console.print()
+        console.print(entry.content)
+        console.print()
+
+    elif subcmd == "delete":
+        if not rest:
+            console.print("[red]Usage: /memory delete <name>[/]\n")
+            return
+        if delete_memory(rest):
+            console.print(f"[green]Deleted:[/] {rest}\n")
+        else:
+            console.print(f"[red]Not found:[/] {rest}\n")
+
+    elif subcmd == "summary":
+        console.print(f"\n{memory_summary()}\n")
+
+    else:
+        console.print(f"[red]Unknown subcommand:[/] {subcmd}")
+        console.print("[dim]Usage: /memory [list|show|delete|summary]\n")
+
+
+def _handle_sessions() -> None:
+    """Handle /sessions command."""
+    sessions = AgentSession.list_sessions()
+    if not sessions:
+        console.print("\n[dim]No saved sessions.[/]\n")
+        return
+    console.print(f"\n[bold]Sessions ({len(sessions)}):[/]\n")
+    for s in sessions:
+        console.print(
+            f"  [cyan]{s['session_id']}[/]  "
+            f"[dim]updated={s['updated']}  messages={s['messages']}[/]"
+        )
+    console.print()
+
+
+async def _handle_dream() -> None:
+    """Handle /dream command — run blood moon consolidation."""
+    from rich.status import Status
+    from ..memory import dream
+
+    console.print("\n[bold red]Blood Moon rises...[/]")
+    with Status("[bold red]Consolidating memories...[/]", console=console, spinner="moon"):
+        result = dream()
+
+    if result.created > 0 or result.updated > 0:
+        console.print(f"[green]  Created:[/] {result.created}  [cyan]Updated:[/] {result.updated}  [dim]Skipped:[/] {result.skipped}")
+        if result.names:
+            console.print(f"[dim]  {', '.join(result.names)}[/]")
+    else:
+        console.print("[dim]  No new signals found. Nothing to consolidate.[/]")
+    console.print()
+
+
+def _display_tool_invocation(inv) -> None:
+    """Display a tool invocation with its output."""
+    # Header: tool name + arg preview
+    args = inv.args
+    if args:
+        first_val = str(list(args.values())[0])[:60]
+        console.print(f"\n[green]  {inv.name}[/]([dim]{first_val}[/])")
+    else:
+        console.print(f"\n[green]  {inv.name}[/]")
+
+    # Output lines (dim, with | prefix)
+    output = inv.result.output
+    lines = output.split("\n")
+    max_lines = 20
+    for line in lines[:max_lines]:
+        console.print(f"[dim]  | {line}[/]")
+    remaining = len(lines) - max_lines
+    if remaining > 0:
+        console.print(f"[dim]  \u2026 +{remaining} more lines[/]")
+
+
 async def _run_connected(agent_session: AgentSession) -> None:
-    """Run connected REPL with prompt-toolkit."""
+    """Run connected REPL with prompt-toolkit and tool support."""
+    from ..tools import ToolRegistry
+    from ..tools.bash import bash_tool
+
+    # Set up tool registry
+    registry = ToolRegistry()
+    registry.register(bash_tool)
+    tools_schema = registry.make_schema()
+
     prompt_session = _create_prompt_session()
 
     while True:
@@ -446,48 +581,37 @@ async def _run_connected(agent_session: AgentSession) -> None:
             continue
 
         try:
-            # Start streaming status animation
+            # Spinner while waiting for API
             status = StreamingStatus()
             status.start()
 
-            # Stream response with thinking support
-            first_chunk = True
-            in_thinking = False
-            total_chars = 0
-            async for chunk in agent_session.send_stream(raw):
-                if first_chunk:
-                    # Stop animation and print newline before output
-                    await status.stop()
-                    console.print()
-                    first_chunk = False
+            # Run agentic turn (handles tool loop internally)
+            turn = await agent_session.run_turn(
+                raw,
+                tools=tools_schema,
+                tool_runner=registry.run,
+            )
 
-                if chunk.type == "thinking":
-                    if not in_thinking:
-                        # Start thinking block with dim style
-                        console.print("[dim]∴ Thinking…[/]")
-                        in_thinking = True
-                    console.print(chunk.content, end="", style="dim")
-                else:
-                    if in_thinking:
-                        # End thinking block with separator
-                        console.print("\n")
-                        in_thinking = False
-                    total_chars += len(chunk.content)
-                    console.print(chunk.content, end="")
+            elapsed, _ = await status.stop()
 
-            # Close thinking block if still open
-            if in_thinking:
+            # Display tool invocations
+            for inv in turn.tool_invocations:
+                _display_tool_invocation(inv)
+
+            # Display final text
+            if turn.text:
+                console.print()
+                console.print(turn.text)
                 console.print()
 
-            # If we never got any chunks, still stop the animation
-            if first_chunk:
-                await status.stop()
-
-            console.print()
-
-            # Show summary
-            elapsed = time.time() - status.start_time
-            approx_tokens = total_chars // 4
+            # Summary
+            total_tokens = turn.usage.get("input_tokens", 0) + turn.usage.get(
+                "output_tokens", 0
+            )
+            if total_tokens >= 1000:
+                tokens_str = f"{total_tokens / 1000:.1f}k"
+            else:
+                tokens_str = str(total_tokens)
 
             if elapsed < 60:
                 time_str = f"{elapsed:.1f}s"
@@ -496,20 +620,18 @@ async def _run_connected(agent_session: AgentSession) -> None:
                 secs = elapsed % 60
                 time_str = f"{mins}m {secs:.0f}s"
 
-            if approx_tokens >= 1000:
-                tokens_str = f"{approx_tokens/1000:.1f}k"
-            else:
-                tokens_str = str(approx_tokens)
-
-            console.print(f"[dim]* Completed in {time_str} · ~{tokens_str} tokens[/]")
+            parts = [f"{time_str}", f"~{tokens_str} tokens"]
+            tool_count = len(turn.tool_invocations)
+            if tool_count:
+                parts.append(f"{tool_count} tool call{'s' if tool_count > 1 else ''}")
+            console.print(f"[dim]* {' \u00b7 '.join(parts)}[/]")
+            console.print()
 
         except asyncio.CancelledError:
-            # Handle Ctrl+C during streaming
             if "status" in locals():
                 await status.stop()
             console.print("\n[dim]Interrupted[/]")
         except KeyboardInterrupt:
-            # Handle Ctrl+C during streaming
             if "status" in locals():
                 await status.stop()
             console.print("\n[dim]Interrupted[/]")
@@ -545,15 +667,37 @@ async def _run_mock() -> None:
             continue
 
 
-def run_repl() -> int:
+def run_repl(resume: str | None = None) -> int:
     _print_banner()
 
     async def runner() -> None:
         if not get_api_key():
             await _run_mock()
             return
-        session = AgentSession()
-        await session.start()
+
+        if resume:
+            # Resolve session_id
+            if resume == "latest":
+                sid = AgentSession.latest_session_id()
+                if not sid:
+                    console.print("[yellow]No sessions to resume.[/]")
+                    return
+            else:
+                sid = resume
+
+            session = AgentSession.load(sid)
+            if session is None:
+                console.print(f"[red]Session not found:[/] {sid}")
+                return
+            await session.start()  # Only creates client, doesn't reload memory
+            msg_count = len(session.messages)
+            console.print(
+                f"[dim]Resumed session {session.session_id} ({msg_count} messages)[/]"
+            )
+        else:
+            session = AgentSession()
+            await session.start()
+
         try:
             await _run_connected(session)
         finally:

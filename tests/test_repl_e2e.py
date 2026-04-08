@@ -5,20 +5,33 @@ from __future__ import annotations
 import os
 import sys
 import time
+import unittest
 
-import pexpect
+try:
+    import pexpect
+    _HAS_PEXPECT = True
+except ImportError:
+    pexpect = None  # type: ignore[assignment]
+    _HAS_PEXPECT = False
 
 # Windows uses popen_spawn, Unix uses spawn
-if sys.platform == "win32":
-    from pexpect import popen_spawn
+if _HAS_PEXPECT:
+    if sys.platform == "win32":
+        from pexpect import popen_spawn
 
-    SPAWN = popen_spawn.PopenSpawn
-    EOF_OBJ = popen_spawn.EOF
-else:
-    SPAWN = pexpect.spawn
-    EOF_OBJ = pexpect.EOF
+        SPAWN = popen_spawn.PopenSpawn
+        EOF_OBJ = popen_spawn.EOF
+    else:
+        SPAWN = pexpect.spawn
+        EOF_OBJ = pexpect.EOF
 
 
+def _requires_pexpect(test_func):
+    """Skip decorator for tests needing pexpect."""
+    return unittest.skipUnless(_HAS_PEXPECT, "pexpect not installed")(test_func)
+
+
+@_requires_pexpect
 def test_repl_startup():
     """Test REPL starts and shows banner."""
     child = SPAWN("uv run python -m src.cli.main", timeout=10)
@@ -33,6 +46,7 @@ def test_repl_startup():
     child.wait()
 
 
+@_requires_pexpect
 def test_command_completion():
     """Test slash command auto-completion (interactive mode only)."""
     # Completion requires TTY, skip in non-interactive test mode
@@ -51,6 +65,7 @@ def test_command_completion():
     child.wait()
 
 
+@_requires_pexpect
 def test_help_command():
     """Test /help shows available commands."""
     child = SPAWN("uv run python -m src.cli.main", timeout=10)
@@ -70,6 +85,7 @@ def test_help_command():
     child.wait()
 
 
+@_requires_pexpect
 def test_unknown_command():
     """Test unknown command shows error."""
     child = SPAWN("uv run python -m src.cli.main", timeout=10)
@@ -85,6 +101,7 @@ def test_unknown_command():
     child.wait()
 
 
+@_requires_pexpect
 def test_mock_mode():
     """Test mock mode behavior - depends on settings.json having no API key."""
     # Note: This test only works if ~/.nano-claude/settings.json has no API key
