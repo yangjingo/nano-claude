@@ -258,7 +258,7 @@ class AgentSession:
         """List all persisted sessions.
 
         Returns:
-            List of dicts with session_id, created, updated, message_count.
+            List of dicts with session_id, created, updated, message_count, preview.
             Sorted by updated descending (most recent first).
         """
         session_dir = cls._session_dir()
@@ -274,11 +274,29 @@ class AgentSession:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 sid = data.get("session_id", filename[:-5])
+                # Extract first user message as preview (skip context blocks)
+                preview = ""
+                for msg in data.get("messages", []):
+                    if msg.get("role") == "user":
+                        content = msg.get("content", "")
+                        if isinstance(content, str):
+                            # Strip context block prefix if present
+                            lines = content.split("\n")
+                            clean_lines = [
+                                l for l in lines
+                                if not l.startswith("[context]")
+                            ]
+                            # Also skip the blank line after context block
+                            while clean_lines and not clean_lines[0].strip():
+                                clean_lines.pop(0)
+                            preview = " ".join(clean_lines)[:60].replace("\n", " ")
+                        break
                 sessions.append({
                     "session_id": sid,
                     "created": data.get("created", "?"),
                     "updated": data.get("updated", "?"),
                     "messages": str(len(data.get("messages", []))),
+                    "preview": preview,
                 })
             except (IOError, json.JSONDecodeError):
                 sessions.append({
@@ -286,6 +304,7 @@ class AgentSession:
                     "created": "?",
                     "updated": "?",
                     "messages": "?",
+                    "preview": "",
                 })
 
         sessions.sort(key=lambda s: s["updated"], reverse=True)

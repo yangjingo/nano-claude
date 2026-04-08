@@ -18,7 +18,6 @@ from ..registry.commands import (
 from ..registry.tool_pool import assemble_tool_pool
 from ..registry.tools import execute_tool, get_tool, get_tools, render_tool_index
 from ..remote_runtime import run_remote_mode, run_ssh_mode, run_teleport_mode
-from ..session_store import load_session
 from ..setup import run_setup
 from .repl import _print_buddy, run_repl
 
@@ -28,7 +27,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="Python porting workspace for the Claude Code rewrite effort"
     )
     subparsers = parser.add_subparsers(dest="command", required=False)
-    subparsers.add_parser("repl", help="start interactive REPL")
+    repl_parser = subparsers.add_parser("repl", help="start interactive REPL")
+    repl_parser.add_argument(
+        "--resume", type=str, nargs="?", const="latest",
+        help="resume a previous session (latest or by session_id)",
+    )
+
+    sessions_parser = subparsers.add_parser("sessions", help="manage sessions")
+    sessions_parser.add_argument(
+        "action", choices=["list"], default="list", nargs="?",
+        help="session action",
+    )
     subparsers.add_parser(
         "summary", help="render a Markdown summary of the Python porting workspace"
     )
@@ -92,16 +101,6 @@ def build_parser() -> argparse.ArgumentParser:
     loop_parser.add_argument("--limit", type=int, default=5)
     loop_parser.add_argument("--max-turns", type=int, default=3)
     loop_parser.add_argument("--structured-output", action="store_true")
-
-    flush_parser = subparsers.add_parser(
-        "flush-transcript", help="persist and flush a temporary session transcript"
-    )
-    flush_parser.add_argument("prompt")
-
-    load_session_parser = subparsers.add_parser(
-        "load-session", help="load a previously persisted session"
-    )
-    load_session_parser.add_argument("session_id")
 
     remote_parser = subparsers.add_parser(
         "remote-mode", help="simulate remote-control runtime branching"
@@ -174,6 +173,26 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _handle_sessions(action: str) -> int:
+    """Handle `sessions` subcommand."""
+    from ..agent.agent import AgentSession
+
+    if action == "list":
+        sessions = AgentSession.list_sessions()
+        if not sessions:
+            print("No sessions found.")
+            return 0
+        print(f"Sessions ({len(sessions)}):\n")
+        for s in sessions:
+            print(
+                f"  {s['session_id']}  "
+                f"updated={s['updated']}  "
+                f"messages={s['messages']}"
+            )
+        return 0
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -182,7 +201,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_repl()
     manifest = build_port_manifest()
     if args.command == "repl":
-        return run_repl()
+        resume = getattr(args, "resume", None)
+        return run_repl(resume=resume)
+    if args.command == "sessions":
+        return _handle_sessions(args.action)
     if args.command == "summary":
         print(QueryEnginePort(manifest).render_summary())
         return 0
@@ -266,19 +288,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"## Turn {idx}")
             print(result.output)
             print(f"stop_reason={result.stop_reason}")
-        return 0
-    if args.command == "flush-transcript":
-        engine = QueryEnginePort.from_workspace()
-        engine.submit_message(args.prompt)
-        path = engine.persist_session()
-        print(path)
-        print(f"flushed={engine.transcript_store.flushed}")
-        return 0
-    if args.command == "load-session":
-        session = load_session(args.session_id)
-        print(
-            f"{session.session_id}\n{len(session.messages)} messages\nin={session.input_tokens} out={session.output_tokens}"
-        )
         return 0
     if args.command == "remote-mode":
         print(run_remote_mode(args.target).as_text())

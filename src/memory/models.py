@@ -145,6 +145,8 @@ class DreamResult:
     updated: int = 0
     merged: int = 0
     pruned: int = 0
+    files: list[str] = field(default_factory=list)  # Memory files touched
+    updated_names: list[str] = field(default_factory=list)  # Names of updated memories
 
     def summary(self) -> str:
         """Generate summary string."""

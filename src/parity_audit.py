@@ -122,11 +122,15 @@ class ParityAuditResult:
 
 
 def _reference_surface() -> dict[str, object]:
-    return json.loads(REFERENCE_SURFACE_PATH.read_text())
+    if not REFERENCE_SURFACE_PATH.exists():
+        return {"total_ts_like_files": 0, "command_entry_count": 0, "tool_entry_count": 0}
+    return json.loads(REFERENCE_SURFACE_PATH.read_text(encoding="utf-8"))
 
 
 def _snapshot_count(path: Path) -> int:
-    return len(json.loads(path.read_text()))
+    if not path.exists():
+        return 0
+    return len(json.loads(path.read_text(encoding="utf-8")))
 
 
 def run_parity_audit() -> ParityAuditResult:

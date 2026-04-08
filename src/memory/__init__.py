@@ -1,5 +1,14 @@
 """Memory system for persistent user preferences and project context.
 
+7-layer architecture:
+  L1: Spill to Disk (large output offloading)
+  L2: Cache Micro-compression (API dependency)
+  L3: Session Notes (in-conversation capture)
+  L4: Summary Agent (context window protection)
+  L5: Persistent Memory (file-based storage)
+  L6: Blood Moon (/dream consolidation engine)
+  L7: Cache Alignment (runtime optimization)
+
 Storage location: .nano_claude/memory/
 """
 
@@ -8,20 +17,46 @@ from __future__ import annotations
 from .models import DreamResult, MemoryEntry, MemoryIndex, MemoryType
 from .storage import LocalStorage, get_memory_dir, find_project_root
 from .index import update_index, load_index, write_index, rebuild_index, prune_index
+from .keywords import KeywordMatcher, MatchedSignal, SignalType
+from .notes import SessionNotes, NOTE_MODULES
+from .dreamer import BloodMoon
+from .scheduler import (
+    BloodMoonScheduler,
+    CronExpression,
+    TokenAccumulator,
+    IdleDetector,
+)
 
 __all__ = [
+    # Models
     "MemoryType",
     "MemoryEntry",
     "MemoryIndex",
     "DreamResult",
+    # Storage
     "LocalStorage",
     "get_memory_dir",
     "find_project_root",
+    # Index
     "update_index",
     "load_index",
     "write_index",
     "rebuild_index",
     "prune_index",
+    # Keywords (L6)
+    "KeywordMatcher",
+    "MatchedSignal",
+    "SignalType",
+    # Notes (L3)
+    "SessionNotes",
+    "NOTE_MODULES",
+    # Dreamer (L6)
+    "BloodMoon",
+    # Scheduler (L6)
+    "BloodMoonScheduler",
+    "CronExpression",
+    "TokenAccumulator",
+    "IdleDetector",
 ]
 
 
@@ -133,3 +168,23 @@ def memory_summary(storage: LocalStorage | None = None) -> str:
         lines.append(f"  {t}: {count}")
 
     return "\n".join(lines)
+
+
+def dream(
+    transcript_files: list[str] | None = None,
+    storage: LocalStorage | None = None,
+) -> DreamResult:
+    """Trigger blood moon consolidation.
+
+    Args:
+        transcript_files: Specific transcript files to scan (auto-discovers if None).
+        storage: Optional LocalStorage instance.
+
+    Returns:
+        DreamResult with consolidation statistics.
+    """
+    if storage is None:
+        storage = LocalStorage()
+
+    moon = BloodMoon(storage=storage)
+    return moon.consolidate(transcript_files=transcript_files)

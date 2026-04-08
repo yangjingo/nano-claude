@@ -13,6 +13,12 @@ SNAPSHOT_PATH = (
 )
 
 
+def _load_json(path: Path) -> list:
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 @dataclass(frozen=True)
 class ToolExecution:
     name: str
@@ -24,7 +30,7 @@ class ToolExecution:
 
 @lru_cache(maxsize=1)
 def load_tool_snapshot() -> tuple[PortingModule, ...]:
-    raw_entries = json.loads(SNAPSHOT_PATH.read_text())
+    raw_entries = _load_json(SNAPSHOT_PATH)
     return tuple(
         PortingModule(
             name=entry["name"],

@@ -45,9 +45,11 @@ COMMANDS = {
     "/config": "Show configuration",
     "/buddy": "Roll a random buddy pet",
     "/memory": "List, show, or manage memories",
-    "/dream": "Run blood moon consolidation",
-    "/sessions": "List saved sessions",
+    "/dream": "Scan transcripts for memorable signals and consolidate into persistent memory",
+    "/sessions": "Resume a previous session (alias for /resume)",
     "/resume": "Resume a previous session",
+    "/save": "Save current session to disk",
+    "/clear": "Clear current session messages",
 }
 MODEL_TIERS = ("sonnet", "opus", "haiku")
 
@@ -71,9 +73,6 @@ PT_STYLE = PtStyle.from_dict(
 class CommandCompleter(Completer):
     """Auto-completer for slash commands."""
 
-    # Sub-command completions for /memory
-    MEMORY_SUBCOMMANDS = ("list", "show", "delete", "summary")
-
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor.strip()
         if text.startswith("/"):
@@ -85,16 +84,6 @@ class CommandCompleter(Completer):
                         display=f"{cmd}",
                         display_meta=desc,
                     )
-            # /memory subcommands
-            if text.startswith("/memory "):
-                partial = text[len("/memory "):]
-                for sub in self.MEMORY_SUBCOMMANDS:
-                    if sub.startswith(partial):
-                        yield Completion(
-                            sub,
-                            start_position=-len(partial),
-                            display=f"/memory {sub}",
-                        )
 
 
 class StreamingStatus:
@@ -297,14 +286,13 @@ def _print_help() -> None:
     console.print("  /model <tier>   - Switch to specified tier (sonnet/opus/haiku)")
     console.print("  /config         - Show full configuration")
     console.print("  /buddy          - Roll a random buddy pet")
-    console.print("  /memory         - List all memories")
-    console.print("  /memory show N  - Show memory by name")
-    console.print("  /memory delete N- Delete a memory")
-    console.print("  /memory summary - Memory statistics")
-    console.print("  /dream          - Run blood moon consolidation")
-    console.print("  /sessions       - List saved sessions")
-    console.print("  /resume         - Resume latest session")
-    console.print("  /resume <id>    - Resume specific session\n")
+    console.print("  /memory         - Browse and manage memories")
+    console.print("  /dream          - Scan transcripts for memorable signals and consolidate into persistent memory")
+    console.print("  /resume         - Resume a previous session")
+    console.print("  /resume <id>    - Resume specific session by ID")
+    console.print("  /sessions       - Same as /resume")
+    console.print("  /save           - Save current session to disk")
+    console.print("  /clear          - Clear current session messages\n")
 
 
 # Choice menu style - dark theme with black background
@@ -429,7 +417,55 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
         _print_buddy()
         return True, False
     if cmd == "/memory":
-        _handle_memory(arg)
+        await _handle_memory_async()
+        return True, False
+    if cmd == "/dream":
+        await _handle_dream()
+        return True, False
+    if cmd in ("/resume", "/sessions"):
+        return True, True  # Mock mode: exit (no session to resume)
+    return False, False
+
+
+async def _handle_connected_command(
+    line: str,
+    agent_session: AgentSession,
+    session_holder: list[AgentSession],
+) -> tuple[bool, bool]:
+    """Handle commands in connected mode.
+
+    Supports all local commands plus session-aware /resume, /save, /clear.
+    Returns (handled, should_exit).
+    """
+    if line == "/":
+        selected = await _select_command()
+        if selected:
+            return await _handle_connected_command(selected, agent_session, session_holder)
+        return True, False
+
+    cmd, arg = _parse_command(line)
+
+    if cmd in {"/exit", "/quit"}:
+        return True, True
+    if cmd == "/help":
+        _print_help()
+        return True, False
+    if cmd == "/model":
+        await _handle_model_async(arg)
+        return True, False
+    if cmd == "/config":
+        tier = get_model()
+        actual = get_actual_model(tier)
+        console.print(f"\n[bold]Tier:[/]  {tier}")
+        console.print(f"[bold]Model:[/] {actual}")
+        console.print(f"[bold]API:[/]   {'***' if get_api_key() else 'none'}")
+        console.print(f"[bold]URL:[/]   {get_base_url() or 'default'}\n")
+        return True, False
+    if cmd == "/buddy":
+        _print_buddy()
+        return True, False
+    if cmd == "/memory":
+        await _handle_memory_async()
         return True, False
     if cmd == "/dream":
         await _handle_dream()
@@ -437,92 +473,405 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
     if cmd == "/sessions":
         _handle_sessions()
         return True, False
-    if cmd == "/resume":
-        return True, True  # Signal exit — caller relaunches with --resume
+
+    # Session-aware commands (connected mode only)
+    if cmd in ("/resume", "/sessions"):
+        # If arg provided, resume directly; otherwise show picker
+        target = arg.strip()
+        if target:
+            sid = (
+                AgentSession.latest_session_id()
+                if target == "latest"
+                else target
+            )
+            if not sid:
+                console.print("[yellow]No sessions to resume.[/]")
+            else:
+                new_session = AgentSession.load(sid)
+                if new_session:
+                    await agent_session.stop()
+                    new_session.client = None
+                    await new_session.start()
+                    session_holder[0] = new_session
+                    console.print(
+                        f"[dim]Resumed {sid} ({len(new_session.messages)} messages)[/]"
+                    )
+                    _show_session_history(new_session)
+                else:
+                    console.print(f"[red]Session not found:[/] {sid}")
+        else:
+            await _resume_picker(agent_session, session_holder)
+        return True, False
+
+    if cmd == "/save":
+        path = agent_session.save()
+        if path:
+            console.print(f"[dim]Saved: {path}[/]")
+        else:
+            console.print("[yellow]Nothing to save (no messages).[/]")
+        return True, False
+
+    if cmd == "/clear":
+        agent_session.messages.clear()
+        agent_session._token_usage = {"input": 0, "output": 0}
+        console.print("[dim]Session cleared.[/]")
+        return True, False
+
     return False, False
 
 
-def _handle_memory(arg: str) -> None:
-    """Handle /memory command."""
-    from ..memory import load_memories, get_memory, delete_memory, memory_summary, LocalStorage
+async def _handle_memory_async() -> None:
+    """Handle /memory with two-level choice menu.
 
-    subcmd = arg.strip().split()[0] if arg.strip() else "list"
-    rest = arg.strip().split(None, 1)[1] if len(arg.strip().split(None, 1)) > 1 else ""
+    Level 1: Select action (Browse / Summary / Delete)
+    Level 2: Select memory (for Browse / Delete)
+    """
+    from ..memory import load_memories, get_memory, delete_memory, memory_summary
 
-    if subcmd == "list":
-        entries = load_memories()
+    entries = load_memories()
+
+    # Build level-1 options
+    options: list[tuple[str, str]] = [
+        ("browse", f"Browse memories ({len(entries)})"),
+        ("summary", "Show statistics"),
+    ]
+    if entries:
+        options.append(("delete", f"Delete a memory ({len(entries)})"))
+
+    try:
+        dialog = ChoiceInput(
+            message="Memory:",
+            options=options,
+            style=CHOICE_STYLE,
+            show_frame=True,
+        )
+        action = await dialog.prompt_async()
+    except (KeyboardInterrupt, EOFError):
+        action = None
+
+    if action is None:
+        console.print("[dim]Cancelled[/]\n")
+        return
+
+    if action == "summary":
+        console.print(f"\n{memory_summary()}\n")
+        return
+
+    if action == "browse":
         if not entries:
             console.print("\n[dim]No memories stored yet.[/]\n")
             return
-        console.print(f"\n[bold]Memories ({len(entries)}):[/]\n")
-        for e in entries:
-            console.print(
-                f"  [cyan]{e.name}[/] [dim]({e.type.value})[/] {e.description}"
-            )
-        console.print()
 
-    elif subcmd == "show":
-        if not rest:
-            console.print("[red]Usage: /memory show <name>[/]\n")
+        mem_options = [
+            (e.name, f"{e.name}  ({e.type.value})  {e.description}")
+            for e in entries
+        ]
+        try:
+            dialog = ChoiceInput(
+                message="Select memory:",
+                options=mem_options,
+                style=CHOICE_STYLE,
+                show_frame=True,
+            )
+            selected = await dialog.prompt_async()
+        except (KeyboardInterrupt, EOFError):
+            selected = None
+
+        if selected is None:
+            console.print("[dim]Cancelled[/]\n")
             return
-        entry = get_memory(rest)
+
+        entry = get_memory(selected)
         if not entry:
-            console.print(f"[red]Memory not found:[/] {rest}\n")
+            console.print(f"[red]Not found:[/] {selected}\n")
             return
         console.print(f"\n[bold cyan]{entry.name}[/] [dim]({entry.type.value})[/]")
         console.print(f"[dim]{entry.description}[/]")
         console.print()
         console.print(entry.content)
         console.print()
+        return
 
-    elif subcmd == "delete":
-        if not rest:
-            console.print("[red]Usage: /memory delete <name>[/]\n")
+    if action == "delete":
+        if not entries:
+            console.print("\n[dim]No memories to delete.[/]\n")
             return
-        if delete_memory(rest):
-            console.print(f"[green]Deleted:[/] {rest}\n")
+
+        mem_options = [
+            (e.name, f"{e.name}  ({e.type.value})  {e.description}")
+            for e in entries
+        ]
+        try:
+            dialog = ChoiceInput(
+                message="Delete which memory:",
+                options=mem_options,
+                style=CHOICE_STYLE,
+                show_frame=True,
+            )
+            selected = await dialog.prompt_async()
+        except (KeyboardInterrupt, EOFError):
+            selected = None
+
+        if selected is None:
+            console.print("[dim]Cancelled[/]\n")
+            return
+
+        if delete_memory(selected):
+            console.print(f"[green]Deleted:[/] {selected}\n")
         else:
-            console.print(f"[red]Not found:[/] {rest}\n")
-
-    elif subcmd == "summary":
-        console.print(f"\n{memory_summary()}\n")
-
-    else:
-        console.print(f"[red]Unknown subcommand:[/] {subcmd}")
-        console.print("[dim]Usage: /memory [list|show|delete|summary]\n")
+            console.print(f"[red]Not found:[/] {selected}\n")
 
 
-def _handle_sessions() -> None:
-    """Handle /sessions command."""
+def _show_session_history(session: AgentSession) -> None:
+    """Display recent conversation history after resume."""
+    messages = session.messages
+    if not messages:
+        return
+
+    # Show last N user/assistant pairs (skip context blocks and tool_result)
+    pairs: list[tuple[str, str]] = []
+    for msg in messages:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+
+        if role == "user" and isinstance(content, str):
+            # Skip context-only messages
+            clean = _strip_context_block(content)
+            if clean.strip():
+                pairs.append(("user", clean[:80]))
+        elif role == "assistant" and isinstance(content, str):
+            pairs.append(("assistant", content[:80]))
+        elif role == "assistant" and isinstance(content, list):
+            # Extract text from content blocks
+            texts = []
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    texts.append(block.get("text", ""))
+                elif hasattr(block, "text"):
+                    texts.append(block.text)
+            if texts:
+                pairs.append(("assistant", " ".join(texts)[:80]))
+
+    # Show last 6 messages (3 pairs)
+    recent = pairs[-6:]
+    if recent:
+        console.print()
+        for role, text in recent:
+            if role == "user":
+                console.print(f"  [dim]> {text}[/]")
+            else:
+                console.print(f"  [dim]{text}[/]")
+        console.print()
+
+
+def _strip_context_block(content: str) -> str:
+    """Strip [context] ... prefix from user message content."""
+    lines = content.split("\n")
+    clean = [l for l in lines if not l.startswith("[context]")]
+    # Remove leading blank lines left after stripping context
+    while clean and not clean[0].strip():
+        clean.pop(0)
+    return "\n".join(clean)
+
+
+async def _resume_picker(
+    agent_session: AgentSession,
+    session_holder: list[AgentSession],
+) -> None:
+    """Show interactive session picker and resume selected session."""
     sessions = AgentSession.list_sessions()
     if not sessions:
         console.print("\n[dim]No saved sessions.[/]\n")
         return
-    console.print(f"\n[bold]Sessions ({len(sessions)}):[/]\n")
-    for s in sessions:
-        console.print(
-            f"  [cyan]{s['session_id']}[/]  "
-            f"[dim]updated={s['updated']}  messages={s['messages']}[/]"
+
+    # Build choice options
+    options: list[tuple[str, str]] = []
+    for s in sessions[:20]:
+        sid = s["session_id"]
+        preview = s.get("preview", "")[:30]
+        msg_count = s.get("messages", "?")
+        updated = s.get("updated", "?")[:16]
+        label = f"{sid}"
+        if preview:
+            label += f"  {preview}"
+        label += f"  [{msg_count} msgs]"
+        options.append((sid, label))
+
+    try:
+        dialog = ChoiceInput(
+            message="Resume session:",
+            options=options,
+            style=CHOICE_STYLE,
+            show_frame=True,
         )
-    console.print()
+        selected = await dialog.prompt_async()
+    except (KeyboardInterrupt, EOFError):
+        console.print("[dim]Cancelled[/]\n")
+        return
+
+    if selected is None:
+        console.print("[dim]Cancelled[/]\n")
+        return
+
+    new_session = AgentSession.load(selected)
+    if new_session:
+        await agent_session.stop()
+        new_session.client = None
+        await new_session.start()
+        session_holder[0] = new_session
+        console.print(
+            f"\n[dim]Resumed {selected} ({len(new_session.messages)} messages)[/]"
+        )
+        _show_session_history(new_session)
+    else:
+        console.print(f"\n[red]Session not found:[/] {selected}\n")
 
 
 async def _handle_dream() -> None:
-    """Handle /dream command — run blood moon consolidation."""
+    """Handle /dream command — run blood moon consolidation, show history + next scheduled."""
     from rich.status import Status
+    from rich.panel import Panel
+    from rich.table import Table
     from ..memory import dream
 
-    console.print("\n[bold red]Blood Moon rises...[/]")
-    with Status("[bold red]Consolidating memories...[/]", console=console, spinner="moon"):
+    console.print()
+    console.rule("[bold red] Blood Moon [/]")
+    with Status("[bold red]Scanning transcripts...[/]", console=console, spinner="moon"):
         result = dream()
 
+    # ── Result panel ──
     if result.created > 0 or result.updated > 0:
-        console.print(f"[green]  Created:[/] {result.created}  [cyan]Updated:[/] {result.updated}  [dim]Skipped:[/] {result.skipped}")
+        lines: list[str] = []
+        if result.created:
+            lines.append(f"[green]+ {result.created} created[/]")
+        if result.updated:
+            lines.append(f"[cyan]~ {result.updated} updated[/]")
+        if result.skipped:
+            lines.append(f"[dim]- {result.skipped} skipped[/]")
         if result.names:
-            console.print(f"[dim]  {', '.join(result.names)}[/]")
+            lines.append("")
+            for name in result.names[:8]:
+                lines.append(f"  [bold]{name}[/]")
+        if result.files:
+            from ..memory.storage import find_project_root
+            root = find_project_root()
+            lines.append("")
+            lines.append("[dim]files:[/]")
+            for fp in result.files:
+                rel = os.path.relpath(fp, root) if os.path.isabs(fp) else fp
+                bak = fp + ".bak"
+                if os.path.exists(bak):
+                    bak_rel = os.path.relpath(bak, root) if os.path.isabs(bak) else bak
+                    lines.append(f"  [cyan]{rel}[/] [dim]<-- {bak_rel}[/]")
+                else:
+                    lines.append(f"  [green]{rel}[/]")
+        console.print(Panel("\n".join(lines), title="Consolidated", border_style="red"))
     else:
-        console.print("[dim]  No new signals found. Nothing to consolidate.[/]")
+        console.print(Panel("[dim]No new signals found. Nothing to consolidate.[/]",
+                            border_style="dim"))
+
+    # Append to dream log
+    _append_dream_log(result)
+
+    # ── History + schedule ──
+    _show_dream_summary()
+
+
+def _dream_log_path() -> str:
+    """Return the dream log file path."""
+    from ..memory.storage import find_project_root
+    return os.path.join(find_project_root(), ".nano_claude", "dream_log.jsonl")
+
+
+def _append_dream_log(result) -> None:
+    """Append dream result to log file."""
+    import json
+    from datetime import datetime
+
+    try:
+        os.makedirs(os.path.dirname(_dream_log_path()), exist_ok=True)
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "total": result.total,
+            "created": result.created,
+            "updated": result.updated,
+            "merged": result.merged,
+            "pruned": result.pruned,
+            "names": list(result.names) if result.names else [],
+        }
+        with open(_dream_log_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def _show_dream_summary() -> None:
+    """Show dream history, next scheduled run, and memory locations."""
+    import json
+    from datetime import datetime, timedelta
+    from rich.table import Table
+
+    log_path = _dream_log_path()
+    entries: list[dict] = []
+    if os.path.exists(log_path):
+        with open(log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+
+    # ── History table ──
+    if entries:
+        table = Table(show_header=True, header_style="bold dim", border_style="dim",
+                      padding=(0, 1))
+        table.add_column("Time", style="dim", min_width=19)
+        table.add_column("Changes", min_width=16)
+        table.add_column("Signals", style="dim")
+
+        for entry in entries[-8:]:
+            ts = entry.get("timestamp", "?")[:19]
+            created = entry.get("created", 0)
+            updated = entry.get("updated", 0)
+            names = entry.get("names", [])
+
+            parts = []
+            if created:
+                parts.append(f"[green]+{created}[/]")
+            if updated:
+                parts.append(f"[cyan]~{updated}[/]")
+            changes = " ".join(parts) if parts else "[dim]--[/]"
+            signals = ", ".join(names[:4]) if names else "--"
+
+            table.add_row(ts, changes, signals)
+
+        console.print()
+        console.print(table)
+
+    # ── Footer info ──
+    footer_parts: list[str] = []
+
+    # Next scheduled
+    next_run = datetime.now().replace(hour=3, minute=0, second=0, microsecond=0)
+    if next_run < datetime.now():
+        next_run += timedelta(days=1)
+    hours_left = (next_run - datetime.now()).total_seconds() / 3600
+    footer_parts.append(f"next: [bold]{next_run.strftime('%Y-%m-%d %H:%M')}[/] [dim](~{hours_left:.0f}h)[/]")
+
+    # Memory count
+    from ..memory.storage import find_project_root
+    memory_dir = os.path.join(find_project_root(), ".nano_claude", "memory")
+    memory_count = 0
+    if os.path.isdir(memory_dir):
+        memory_count = sum(1 for f in os.listdir(memory_dir)
+                           if f.endswith(".md") and f != "MEMORY.md")
+    footer_parts.append(f"[dim]{memory_count} memories[/]")
+
+    console.print("  " + "  ".join(footer_parts))
     console.print()
+
 
 
 def _display_tool_invocation(inv) -> None:
@@ -546,8 +895,12 @@ def _display_tool_invocation(inv) -> None:
         console.print(f"[dim]  \u2026 +{remaining} more lines[/]")
 
 
-async def _run_connected(agent_session: AgentSession) -> None:
-    """Run connected REPL with prompt-toolkit and tool support."""
+async def _run_connected(session_holder: list[AgentSession]) -> None:
+    """Run connected REPL with prompt-toolkit and tool support.
+
+    ``session_holder`` is a single-element list so /resume can swap the
+    active session without changing the reference in the caller.
+    """
     from ..tools import ToolRegistry
     from ..tools.bash import bash_tool
 
@@ -559,6 +912,8 @@ async def _run_connected(agent_session: AgentSession) -> None:
     prompt_session = _create_prompt_session()
 
     while True:
+        agent_session = session_holder[0]
+
         try:
             raw = await _get_input(prompt_session)
         except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
@@ -568,7 +923,9 @@ async def _run_connected(agent_session: AgentSession) -> None:
             continue
 
         try:
-            handled, should_exit = await _handle_local_command(raw)
+            handled, should_exit = await _handle_connected_command(
+                raw, agent_session, session_holder
+            )
             if should_exit:
                 break
             if handled:
@@ -694,14 +1051,16 @@ def run_repl(resume: str | None = None) -> int:
             console.print(
                 f"[dim]Resumed session {session.session_id} ({msg_count} messages)[/]"
             )
+            _show_session_history(session)
         else:
             session = AgentSession()
             await session.start()
 
+        holder = [session]
         try:
-            await _run_connected(session)
+            await _run_connected(holder)
         finally:
-            await session.stop()
+            await holder[0].stop()
 
     try:
         asyncio.run(runner())
