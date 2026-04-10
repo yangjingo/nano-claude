@@ -113,3 +113,18 @@ class ToolRegistry:
             return ToolResult(output=output)
         except Exception as err:
             return ToolResult(output=f"error: {err}", is_error=True)
+
+
+def default_registry() -> ToolRegistry:
+    """Create a registry pre-loaded with all built-in tools."""
+    from .bash import bash_tool
+    from .edit import edit_tool
+    from .glob_tool import glob_tool
+    from .grep_tool import grep_tool
+    from .read import read_tool
+    from .write import write_tool
+
+    registry = ToolRegistry()
+    for tool in (bash_tool, read_tool, write_tool, edit_tool, glob_tool, grep_tool):
+        registry.register(tool)
+    return registry

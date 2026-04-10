@@ -901,12 +901,9 @@ async def _run_connected(session_holder: list[AgentSession]) -> None:
     ``session_holder`` is a single-element list so /resume can swap the
     active session without changing the reference in the caller.
     """
-    from ..tools import ToolRegistry
-    from ..tools.bash import bash_tool
+    from ..tools import default_registry
 
-    # Set up tool registry
-    registry = ToolRegistry()
-    registry.register(bash_tool)
+    registry = default_registry()
     tools_schema = registry.make_schema()
 
     prompt_session = _create_prompt_session()

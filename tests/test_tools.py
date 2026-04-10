@@ -202,16 +202,34 @@ class TestBashShellDetection(unittest.TestCase):
             shell = bash_mod._detect_shell()
         self.assertEqual(shell, ["/bin/bash", "-c"])
 
-    def test_windows_git_bash(self):
+    def test_windows_wsl(self):
+        """Windows host with WSL available → delegate to wsl bash."""
         import src.tools.bash as bash_mod
+        def fake_which(cmd):
+            return "wsl.exe" if cmd == "wsl" else None
         with patch("src.tools.bash.sys.platform", "win32"), \
-             patch("src.tools.bash.shutil.which", return_value="C:\\Git\\bin\\bash.exe"):
+             patch("src.tools.bash.shutil.which", side_effect=fake_which):
+            shell = bash_mod._detect_shell()
+        self.assertEqual(shell, ["wsl", "bash", "-c"])
+
+    def test_windows_git_bash(self):
+        """Windows host, no WSL, Git Bash available."""
+        import src.tools.bash as bash_mod
+        def fake_which(cmd):
+            if cmd == "wsl":
+                return None  # WSL not available
+            if cmd == "bash":
+                return "C:\\Git\\bin\\bash.exe"
+            return None
+        with patch("src.tools.bash.sys.platform", "win32"), \
+             patch("src.tools.bash.shutil.which", side_effect=fake_which):
             shell = bash_mod._detect_shell()
         self.assertEqual(shell[0], "C:\\Git\\bin\\bash.exe")
         self.assertIn("--norc", shell)
         self.assertIn("--noprofile", shell)
 
     def test_windows_cmd_fallback(self):
+        """Windows host, no WSL, no Git Bash → cmd.exe fallback."""
         import src.tools.bash as bash_mod
         with patch("src.tools.bash.sys.platform", "win32"), \
              patch("src.tools.bash.shutil.which", return_value=None), \
@@ -220,6 +238,7 @@ class TestBashShellDetection(unittest.TestCase):
         self.assertEqual(shell, ["C:\\Windows\\cmd.exe", "/c"])
 
     def test_windows_no_comspec(self):
+        """Windows host, no WSL, no Git Bash, no COMSPEC → bare cmd.exe."""
         import src.tools.bash as bash_mod
         with patch("src.tools.bash.sys.platform", "win32"), \
              patch("src.tools.bash.shutil.which", return_value=None), \
@@ -266,6 +285,174 @@ class TestBashExecute(unittest.IsolatedAsyncioTestCase):
         self.assertIn("timed out", result)
         mock_proc.kill.assert_called_once()
         mock_proc.wait.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# default_registry — all built-in tools loaded
+# ---------------------------------------------------------------------------
+
+class TestDefaultRegistry(unittest.TestCase):
+
+    def test_default_registry_has_six_tools(self):
+        from src.tools import default_registry
+        reg = default_registry()
+        self.assertEqual(
+            set(reg.list_names()),
+            {"Bash", "Read", "Write", "Edit", "Glob", "Grep"},
+        )
+
+    def test_default_registry_schema_valid(self):
+        from src.tools import default_registry
+        schema = default_registry().make_schema()
+        self.assertEqual(len(schema), 6)
+        for s in schema:
+            self.assertIn("name", s)
+            self.assertIn("input_schema", s)
+
+
+# ---------------------------------------------------------------------------
+# Read tool
+# ---------------------------------------------------------------------------
+
+class TestReadTool(unittest.IsolatedAsyncioTestCase):
+
+    async def test_read_existing_file(self):
+        from src.tools.read import execute
+        result = await execute(file_path="src/tools/__init__.py", limit=20)
+        self.assertIn("ToolParam", result)
+        self.assertNotIn("error", result)
+
+    async def test_read_nonexistent_file(self):
+        from src.tools.read import execute
+        result = await execute(file_path="/tmp/no_such_file_xyz.py")
+        self.assertIn("error", result)
+
+    async def test_read_with_offset(self):
+        from src.tools.read import execute
+        result = await execute(file_path="src/tools/__init__.py", offset=10, limit=1)
+        # Should have exactly one numbered line (may have trailing "more lines" msg)
+        numbered = [l for l in result.splitlines() if l and l[0].isdigit()]
+        self.assertEqual(len(numbered), 1)
+
+
+# ---------------------------------------------------------------------------
+# Write + Edit tools
+# ---------------------------------------------------------------------------
+
+class TestWriteEditTools(unittest.IsolatedAsyncioTestCase):
+
+    async def test_write_then_read(self):
+        import tempfile, os
+        from src.tools.write import execute as write_exec
+        from src.tools.read import execute as read_exec
+
+        path = os.path.join(tempfile.gettempdir(), "nc_write_test.txt")
+        w = await write_exec(file_path=path, content="hello\nworld\n")
+        self.assertIn("wrote", w)
+
+        r = await read_exec(file_path=path)
+        self.assertIn("hello", r)
+        self.assertIn("world", r)
+        os.unlink(path)
+
+    async def test_edit_replaces_text(self):
+        import tempfile, os
+        from src.tools.write import execute as write_exec
+        from src.tools.edit import execute as edit_exec
+        from src.tools.read import execute as read_exec
+
+        path = os.path.join(tempfile.gettempdir(), "nc_edit_test.txt")
+        await write_exec(file_path=path, content="foo bar baz\n")
+        e = await edit_exec(file_path=path, old_string="bar", new_string="QUX")
+        self.assertIn("replaced 1", e)
+
+        r = await read_exec(file_path=path)
+        self.assertIn("QUX", r)
+        os.unlink(path)
+
+    async def test_edit_rejects_ambiguous(self):
+        import tempfile, os
+        from src.tools.write import execute as write_exec
+        from src.tools.edit import execute as edit_exec
+
+        path = os.path.join(tempfile.gettempdir(), "nc_edit_ambig.txt")
+        await write_exec(file_path=path, content="aaa\naaa\n")
+        e = await edit_exec(file_path=path, old_string="aaa", new_string="bbb")
+        self.assertIn("error", e)
+        self.assertIn("2 locations", e)
+        os.unlink(path)
+
+    async def test_edit_replace_all(self):
+        import tempfile, os
+        from src.tools.write import execute as write_exec
+        from src.tools.edit import execute as edit_exec
+        from src.tools.read import execute as read_exec
+
+        path = os.path.join(tempfile.gettempdir(), "nc_edit_all.txt")
+        await write_exec(file_path=path, content="aaa\nbbb\naaa\n")
+        e = await edit_exec(
+            file_path=path, old_string="aaa", new_string="ccc", replace_all=True
+        )
+        self.assertIn("replaced 2", e)
+        os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Glob tool
+# ---------------------------------------------------------------------------
+
+class TestGlobTool(unittest.IsolatedAsyncioTestCase):
+
+    async def test_glob_finds_py_files(self):
+        from src.tools.glob_tool import execute
+        result = await execute(pattern="*.py", path="src/tools")
+        self.assertIn("__init__.py", result)
+        self.assertIn("bash.py", result)
+
+    async def test_glob_recursive(self):
+        from src.tools.glob_tool import execute
+        result = await execute(pattern="**/*.py", path="src/tools")
+        self.assertIn("bash.py", result)
+
+    async def test_glob_no_match(self):
+        from src.tools.glob_tool import execute
+        result = await execute(pattern="*.xyz", path="src/tools")
+        self.assertIn("no files", result)
+
+
+# ---------------------------------------------------------------------------
+# Grep tool
+# ---------------------------------------------------------------------------
+
+class TestGrepTool(unittest.IsolatedAsyncioTestCase):
+
+    async def test_grep_finds_pattern(self):
+        from src.tools.grep_tool import execute
+        result = await execute(pattern="class ToolRegistry", path="src/tools/", glob="*.py")
+        self.assertIn("class ToolRegistry", result)
+
+    async def test_grep_case_insensitive(self):
+        from src.tools.grep_tool import execute
+        result = await execute(
+            pattern="class toolparam", path="src/tools/", glob="*.py",
+            case_insensitive=True,
+        )
+        self.assertIn("ToolParam", result)
+
+    async def test_grep_no_match(self):
+        from src.tools.grep_tool import execute
+        result = await execute(pattern="ZZZZZZ_NOTHING", path="src/tools/", glob="*.py")
+        self.assertIn("no matches", result)
+
+    async def test_grep_single_file(self):
+        from src.tools.grep_tool import execute
+        result = await execute(pattern="class ToolDef", path="src/tools/__init__.py")
+        self.assertIn("ToolDef", result)
+
+    async def test_grep_invalid_regex(self):
+        from src.tools.grep_tool import execute
+        result = await execute(pattern="[invalid", path="src/tools/")
+        self.assertIn("error", result)
 
 
 if __name__ == "__main__":
