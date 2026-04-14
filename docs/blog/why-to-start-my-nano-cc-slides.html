@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Project Ignition - Why.J Theater</title>
+    <!-- Reveal.js & KaTeX Assets -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Gochi+Hand&family=JetBrains+Mono&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --grid-line: #fafafa;
+        --main-color: #1e1e1e;
+        --accent-claude: #d97757;
+        --item-bg: rgba(217, 119, 87, 0.05);
+        --strong-bg: rgba(217, 119, 87, 0.12);
+        --font-hand: "Gochi Hand", cursive;
+        --font-mono: "JetBrains Mono", monospace;
+        --shadow: 12px 12px 0px #1e1e1e;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+      }
+
+      .reveal {
+        font-family: var(--font-hand);
+        color: var(--main-color);
+      }
+      .reveal .slides {
+        text-align: left;
+      }
+
+      .header-layer {
+        border-bottom: 8px solid var(--main-color);
+        margin-bottom: 60px;
+        padding-bottom: 25px;
+        position: relative;
+      }
+      .header-layer h2 {
+        font-family: var(--font-hand) !important;
+        font-weight: 800;
+        font-size: clamp(2.5rem, 5vw, 4.5rem) !important;
+        margin: 0 !important;
+        color: var(--main-color) !important;
+      }
+
+      .canvas-layer {
+        display: grid;
+        grid-template-columns: 65% 35%;
+        gap: 60px;
+        align-items: start;
+        min-height: 500px;
+      }
+      .canvas-layer.push-left {
+        display: flex !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        width: 100%;
+        min-height: 400px;
+        padding-left: 5%;
+      }
+
+      .canvas-text {
+        font-size: clamp(1.2rem, 2.8vw, 2.5rem);
+        line-height: 1.4;
+      }
+      .canvas-text ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .canvas-text li {
+        margin-bottom: 25px;
+        position: relative;
+        padding: 10px 10px 10px 55px;
+        border-radius: 8px;
+      }
+      .canvas-text li::before {
+        content: "→";
+        position: absolute;
+        left: 15px;
+        font-weight: 800;
+        color: var(--accent-claude);
+      }
+
+      .no-bullet .canvas-text li {
+        padding-left: 20px;
+      }
+      .no-bullet .canvas-text li::before {
+        content: "";
+      }
+
+      strong {
+        background: var(--strong-bg);
+        padding: 2px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        transform: rotate(-0.5deg);
+        font-weight: 800;
+      }
+
+      .visual-box {
+        border: 6px solid var(--main-color);
+        background: #fff;
+        min-height: 380px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+      .visual-box img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .pulse-layer {
+        position: absolute;
+        bottom: 20px;
+        left: 55px;
+        background: #fff;
+        border: 6px solid var(--main-color);
+        padding: 20px 40px;
+        transform: rotate(-1.5deg);
+        box-shadow: var(--shadow);
+        font-weight: 800;
+        font-size: clamp(1.2rem, 2vw, 2.2rem);
+        z-index: 10;
+      }
+
+      .ui-label {
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        font-family: var(--font-hand);
+        font-size: 1.2rem;
+        opacity: 0.4;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+
+      .ref-list li {
+        margin-bottom: 8px;
+      }
+
+      .footer-watermark {
+        position: absolute;
+        bottom: 30px;
+        right: 30px;
+        font-family: var(--font-hand);
+        font-size: 0.8rem;
+        opacity: 0.1; /* Nano Banano Faint Protocol */
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <!-- 00 Cover -->
+        <section data-transition="none">
+          <div
+            class="header-layer"
+            style="border-bottom: none; padding-left: 5%; margin-top: 10%"
+          >
+            <div class="ui-label">00 / Cover</div>
+            <h1
+              style="
+                font-size: clamp(4rem, 10vw, 7rem);
+                font-weight: 800;
+                margin: 0;
+                line-height: 1;
+              "
+            >
+              Nano Claude
+            </h1>
+            <h2
+              style="
+                margin-top: 30px;
+                font-size: clamp(2rem, 4vw, 3.5rem) !important;
+              "
+            >
+              <strong>从 Claude Code源码学习到复刻一个Nano Claude的一些碎碎念</strong>
+            </h2>
+            <div style="margin-top: 60px; font-family: var(--font-hand); font-size: 1.2rem; line-height: 2; opacity: 0.8">
+              版本: <strong>0.1</strong> &nbsp;&nbsp; 作者: <strong>Why.J</strong> &nbsp;&nbsp; 日期: <strong>2026.04.13</strong>
+            </div>
+          </div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 01 Context -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">01 / Context</div>
+            <h2>范式转移：复刻一个Nano 项目是最好的学习方式</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>旧范式</strong>: 搭环境 -> 跑demo ->读源码 -> 陷细节 -> 陷入细节。</li>
+                <li><strong>新范式</strong>: 创Nano -> 跑demo -> 读文档-> 理解核心 -> 实现核心。</li>
+                <li><strong>目标点</strong>: 追求极致优雅的代码减法。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig1.png" alt="旧范式 vs 新范式" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 端到端跑通最小的功能闭环，理解全部的逻辑更重要。 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 02 Agenda -->
+        <section data-transition="none" class="no-bullet">
+          <div class="header-layer">
+            <div class="ui-label">02 / Agenda</div>
+            <h2>OutLine</h2>
+          </div>
+          <div class="canvas-layer push-left">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>Q1</strong>: 如何进行项目的极致“减法复刻”？</li>
+                <li><strong>Q2</strong>: Vibe 时代的代码阅读流如何演进？</li>
+                <li><strong>Q3</strong>: Nano Claude 的具体设计与开发路径？</li>
+                <li><strong>Q4</strong>: 如何更加高效的进行 Vibe Coding？</li>
+
+              </ul>
+            </div>
+          </div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 03 Mechanism: 减法 -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">03 / Mechanism</div>
+            <h2>减法原则：从完整项目 进化到 Nano 麻雀</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>逻辑 Nano 化</strong>:  剥离所有边缘依赖与交错， 简化一些复杂的边界管理。</li>
+                <li><strong>效率 Nano 化</strong>:  代码的运行效率是可以优先级放后的。</li>
+                <li><strong>心态</strong>: 为学习而拆解，理解核心功能，关注必要的细节即可，不必死磕所有细节。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig3.png" alt="MINI → NANO 减法公式" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 做减法，优雅的本质是删除到无可再删。 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 04 Mechanism: 阅读流 -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">04 / Mechanism</div>
+            <h2>阅读流重塑：架构理念学习优于源码实现细节</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>核心认知</strong>: 与Agent交互重于具体代码实现， CC的单点代码能力一定比你强。</li>
+                <li><strong>执行策略</strong>: 喂给 Claude Code全量源码， 输出架构和工程细节的文档。</li>
+                <li><strong>核心点</strong>: 专注为你的Agent写好规范和需求，约束你的Agent的行动空间和边界。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig4.png" alt="阅读流：Agent Context → User Intent → Logic Skeleton" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 Spec-Driven 规则/需求驱动的的Vibe Coding开发模式。 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 05 Mechanism: 工具链 -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">05 / Mechanism</div>
+            <h2>逆向工具使用：快速获取源码的逻辑骨架</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>zread-cli</strong>: zhipu的极速索引与全目录提取。</li>
+                <li><strong>deepwiki </strong>: 免费的自动化构建工程知识图谱。</li>
+                <li><strong>claude /init </strong>: Claude Code本身自带的功能。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig5.png" alt="逆向工具链：zread, deepwiki, claude" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 学习源码的文档和设计理念和细节，而不拘泥于源码细节。 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 06 Mechanism: 设计起点 -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">06 / Mechanism</div>
+            <h2>开发起点：以用户视角感受到的功能/UX进行入手</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>交互</strong>: CLI 极简指令优于重度 WebUI， CLI可以让你更加专注和易于拓展</li>
+                <li><strong>技术</strong>: 收敛至相对可控的基础技术栈， 找自己熟悉的工具和框架。</li>
+                <li><strong>锚点</strong>: 从最惊艳的你自己的功能锚点开始切入，开始动手。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig6.png" alt="设计起点：CLI-First" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 用户感知到的功能是最好的入口，从你最喜欢的一个功能开始！ 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+
+
+        <!-- 07 Mechanism: Spec-Driven -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">07 / Mechanism</div>
+            <h2>Spec-Driven：文档即代码的开发</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>文档架构</strong>: Arch -> Module功能模块详设 -> Todo追踪管理进度。</li>
+                <li><strong>文档管理</strong>: Git 追踪一切文档的演进。</li>
+                <li><strong>文档撰写</strong>: 利用一些插件辅助深度的头脑风暴。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig7.png" alt="Spec-Driven：文档即代码" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 写好你的文档，是最高效的指令，注意不断地迭代，以及做好版本控制。 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+
+        <!-- 08 Mechanism: 自动化 -->
+        <section data-transition="none">
+            <div class="header-layer">
+                <div class="ui-label">08 / Mechanism</div>
+                <h2>Test-Driven：让 OpenClaw 负责最终测试</h2>
+            </div>
+            <div class="canvas-layer">
+                <div class="canvas-text">
+                <ul>
+                    <li><strong>策略</strong>: 让 （另外一个）Agent 接管全量测试流程。</li>
+                    <li><strong>测试</strong>: 部署 OpenClaw 自己操作terminal/chrome 进行自动化的测试。</li>
+                    <li><strong>范式</strong>: 告别手动 Debug，迈向 AI 的 “相爱相杀”, 自主闭环。</li>
+                </ul>
+                </div>
+                <div class="visual-box">
+                <img src="figures/fig8.png" alt="自动化闭环：Agent 负责最终测试" />
+                </div>
+            </div>
+            <div class="pulse-layer">「 最好的测试员是另外一个Agent，但是在这之前请你自己确保你会。」</div>
+            <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+            
+
+        <!-- 09 Mechanism: 功能解构 -->
+        <section data-transition="none">
+            <div class="header-layer">
+                <div class="ui-label">09 / Mechanism</div>
+                <h2>进展汇报： Nano Claude 一些开发的经验</h2>
+            </div>
+            <div class="canvas-layer">
+                <div class="canvas-text">
+                <ul>
+                    <li><strong>/buddy</strong>: 协同交互建议协议，在我的terminal装一个zelda宠物系统。 </li>
+                    <li><strong>/dream</strong>: 跨Session的记忆进化， 我以为的梦中进化，变成了血月来了。</li>
+                    <li><strong>/tools</strong>: 核心工具链调用中枢，我也来践行一下bash is all you need 。</li>
+                </ul>
+                </div>
+                <div class="visual-box">
+                <img src="figures/fig9.png" alt="功能解构：/buddy, /tools, /dream" />
+                </div>
+            </div>
+            <div class="pulse-layer">「 找到你最感兴趣的点， 作为入口进行功能的拆解， 注意保留文档。 」</div>
+            <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+            </section>
+
+
+        <!-- 10 Takeaways -->
+        <section data-transition="none" class="no-bullet">
+          <div class="header-layer">
+            <div class="ui-label">10 / Takeaways</div>
+            <h2>行动指南: 立即启动你的Nano 项目</h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text">
+              <ul>
+                <li><strong>行动 1</strong>：启动一个 Nano 级的项目复刻。</li>
+                <li><strong>行动 2</strong>：固化 Spec-Driven 编程方法工作流。</li>
+                <li><strong>行动 3</strong>：跑通 Agent 开发-测试-验证闭环。</li>
+              </ul>
+            </div>
+            <div class="visual-box">
+              <img src="figures/fig10.png" alt="行动指南" />
+            </div>
+          </div>
+          <div class="pulse-layer">「 停止仅限于理论的学习，开始构建一个Nano，干中学与分享！ 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+
+        <!-- 11 Reference -->
+        <section data-transition="none">
+          <div class="header-layer">
+            <div class="ui-label">11 / Reference</div>
+            <h2>Reference </h2>
+          </div>
+          <div class="canvas-layer">
+            <div class="canvas-text no-bullet" style="font-size: 1.1rem">
+              <ul class="ref-list">
+                <li>《重构 改善既有代码的设计第二版》- Martin Fowler - https://book-refactoring2.ifmicro.com/</li>
+                <li>The Way of Code - Rick Rubin - https://www.thewayofcode.com/</li>
+                <li>Nano Claude Artifacts - https://github.com/yangjingo/nano-claude/tree/main/docs</li>
+                <li>Claude Code WIKI (Claude) - https://openedclaude.github.io/claude-reviews-claude</li>
+                <li>Claude Code WIKI (Zread) - http://leow3lab.service.huawei.com:9681/</li>
+                <li>Claude Code Src prompt - https://github.com/Piebald-AI/claude-code-system-prompts</li>
+                <li>AIBot Halo Project - https://github.com/openkursar/hello-halo</li>
+              </ul>
+            </div>
+            <div class="visual-box" data-scale="2">
+              <img src="figures/fig11.png" alt="参考资源" />
+          </div>
+          <div class="pulse-layer">「 拒绝FOMO，不要焦虑，多读经典著作与优雅代码！ 」</div>
+          <div class="footer-watermark">whyj + nano banano + 2026/04/13</div>
+        </section>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        center: true,
+        transition: "none",
+        width: 1400,
+        height: 900,
+        margin: 0.05,
+      });
+    </script>
+  </body>
+</html>
