@@ -47,6 +47,25 @@ async with client.messages.stream(
 }
 ```
 
+### 配置回退链
+
+当 nano-claude 自身配置为空时，自动从 Claude Code 的 `~/.claude/settings.json` 回退读取，优先级：
+
+1. **nano-claude** `~/.nano-claude/settings.json` env
+2. **OS 环境变量**
+3. **Claude Code** `~/.claude/settings.json` env（自动映射变量名）
+4. **硬编码默认值**
+
+环境变量名映射（nano-claude ↔ Claude Code）：
+
+| nano-claude | Claude Code |
+|-------------|-------------|
+| `NANO_CLAUDE_API_KEY` | `ANTHROPIC_AUTH_TOKEN` |
+| `NANO_CLAUDE_BASE_URL` | `ANTHROPIC_BASE_URL` |
+| `NANO_CLAUDE_DEFAULT_SONNET_MODEL` | `ANTHROPIC_DEFAULT_SONNET_MODEL` |
+| `NANO_CLAUDE_DEFAULT_OPUS_MODEL` | `ANTHROPIC_DEFAULT_OPUS_MODEL` |
+| `NANO_CLAUDE_DEFAULT_HAIKU_MODEL` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` |
+
 ---
 
 ## 三、代码规模
@@ -186,6 +205,37 @@ uv run python -m pytest tests/ -v
 
 ---
 
+## 八、Agent 框架对比
+
+### nano-claude / OpenClaw / Hermes Agent
+
+| 维度 | OpenClaw | Hermes Agent | nano-claude |
+|------|----------|--------------|-------------|
+| **架构** | 多 Agent 联合 | 单 Agent 自学习 | 单 Agent 精简实现 |
+| **扩展方式** | 修改配置文件联合多 Agent | 运行时自学习 Skill | 手动编码工具/命令 |
+| **记忆系统** | 外部配置 | 4 层（常驻提示 + SQLite 归档 + Skill + Honcho） | 7 层纵深防御（文件系统 + 血月巩固） |
+| **技能管理** | 手动编写 | 自动生成 + patch 进化 | 无内置 |
+| **定位** | 编排工具 | 自进化搭档 | Claude Code 最小复刻 |
+
+### nano-claude 的独特定位
+
+nano-claude 选择**精简复刻 Claude Code** 路线，通过理解代码来精简它（减法哲学）。记忆系统采用 7 层纵深防御架构，核心特色是血月巩固引擎（`/dream`）。
+
+可从 Hermes Agent 借鉴的方向：
+- **自学习循环** — 任务后自动沉淀 Skill
+- **SQLite FTS5** — 替代文件扫描的历史检索
+- **按需加载** — 控制上下文成本
+
+### Karpathy LLM Wiki + graphify
+
+[Karpathy 的 LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 提出了知识持久化的另一条路径：用 LLM 把原始文件编织成带反向链接的持久化 Wiki。[graphify](https://github.com/safishamsi/graphify) 将其工程化 — 两轮提取（AST + Claude 子代理）构建知识图谱，Leiden 社区发现聚类，SHA256 缓存增量更新，watch 模式实时同步。52 个混合文件语料可降低 71.5x 查询 token 消耗。
+
+三者定位：**LLM Wiki** 是知识输入端（收集 → 组织 → 导航），**Hermes** 是知识输出端（执行 → 学习 → 进化），**graphify** 是两者的桥梁（文件 → 可查询图谱）。
+
+详见 [Hermes Agent Design](./posts/hermes-design.md) / [Skill System Design](./posts/skill-design.md) / [官网](https://hermes-agent.nousresearch.com) / [GitHub](https://github.com/NousResearch/hermes-agent)。
+
+---
+
 ## 相关文档
 
 - `CLAUDE.md` — 项目说明（给 Claude Code 的指引）
@@ -193,4 +243,8 @@ uv run python -m pytest tests/ -v
 - `COMMANDS.md` — 命令手册
 - `docs/posts/tool-design.md` — 工具系统设计
 - `docs/posts/memory-design.md` — 记忆系统设计
+- `docs/posts/hermes-design.md` — Hermes Agent 对比与参考
+- `docs/posts/skill-design.md` — 技能系统设计（自学习闭环 + 开放标准）
 - `docs/posts/TODO.md` — 开发路线图
+- [Karpathy LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — LLM 编织知识 Wiki 的原始思路
+- [graphify](https://github.com/safishamsi/graphify/blob/v3/README.zh-CN.md) — 知识图谱 Skill（Claude Code / Codex / OpenClaw）

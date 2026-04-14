@@ -94,8 +94,10 @@ uv run nano-claude bootstrap "review"   # Session bootstrap simulation
 ### Run Tests
 
 ```bash
-uv run python -m pytest tests/ -v
+wsl bash -lc "cd /mnt/c/Users/yangjing/Project/nano-claude && uv run python -m pytest tests/ -v"
 ```
+
+> **Note**: Tests must be run in WSL (Linux) due to `pywinpty` build issues on Windows. Always use the WSL command above for testing.
 
 ## Architecture
 
@@ -134,8 +136,9 @@ REPL (cli/repl.py)
 
 ## Environment
 
-- **OS**: Windows 11 (WSL2 for development)
+- **OS**: Windows 11 (WSL2 for development and testing)
 - **Python**: 3.12+ (managed by uv)
+- **Testing**: Always run tests in WSL via `wsl bash -lc "cd /mnt/c/Users/yangjing/Project/nano-claude && uv run python -m pytest tests/ -v"`
 - **Dependencies**: `anthropic`, `rich`, `prompt-toolkit`, `questionary`, `claude-agent-sdk`
 - **Build**: `uv` + `hatchling`
 
@@ -143,5 +146,7 @@ REPL (cli/repl.py)
 
 - Commit convention: conventional commits (`feat(scope):`, `fix:`, `docs:`, etc.) — see `docs/COMMIT.md`
 - User config at `~/.nano-claude/settings.json`; project data at `.nano_claude/`
+- Settings fallback chain: nano-claude settings → OS env vars → Claude Code `~/.claude/settings.json` → hardcoded defaults
+- Env var name mapping: `NANO_CLAUDE_API_KEY` ↔ `ANTHROPIC_AUTH_TOKEN`, `NANO_CLAUDE_BASE_URL` ↔ `ANTHROPIC_BASE_URL`, etc.
 - The `archive/` directory, `__pycache__/`, and `.nano_claude/` are gitignored
 - Docs in `docs/`: `ARCHITECTURE.md` (architecture), `COMMANDS.md` (CLI commands), `COMMIT.md` (commit convention), `posts/` (blog posts)

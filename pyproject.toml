@@ -33,5 +33,4 @@ include = ["src", "README.md", "LICENSE"]
 dev = [
     "black>=26.3.1",
     "pexpect>=4.9.0",
-    "pywinpty>=3.0.3",
 ]
