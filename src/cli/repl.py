@@ -87,18 +87,20 @@ class CommandCompleter(Completer):
 
 
 class StreamingStatus:
-    """Real-time status display for streaming responses."""
+    """Deterministic braille-spinner status for streaming responses."""
+
+    # Braille dot frames — smooth, deterministic rotation
+    _FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    _FRAME_INTERVAL = 0.08  # seconds per frame (~12.5 fps)
 
     def __init__(self):
         self.start_time = time.time()
         self.tokens = 0
         self._stop_event = asyncio.Event()
         self._task = None
-        import random
-        self._frames = random.sample(["*", ".", ":", "+", "~", "o"], 3)
         self._frame_idx = 0
-        self._phase_idx = 0
-        self._phases = ["Thinking", "Processing"]
+        self._pause_event = asyncio.Event()
+        self._pause_event.set()  # not paused initially
 
     def _format_time(self) -> str:
         elapsed = time.time() - self.start_time
@@ -116,31 +118,38 @@ class StreamingStatus:
     def _print_status(self):
         import sys
 
+        frame = self._FRAMES[self._frame_idx % len(self._FRAMES)]
         elapsed = self._format_time()
-        frame = self._frames[self._frame_idx % len(self._frames)]
-        self._frame_idx += 1
-        phase = self._phases[self._phase_idx % len(self._phases)]
-
         if self.tokens > 0:
             tokens_str = self._format_tokens()
-            rich_str = f"[bold cyan]{frame}[/] [dim]{phase}... ({elapsed} · {tokens_str} tokens)[/]"
+            rich_str = f"[dim]{frame} Thinking... ({elapsed} · {tokens_str} tokens)[/]"
         else:
-            rich_str = f"[bold cyan]{frame}[/] [dim]{phase}... ({elapsed})[/]"
+            rich_str = f"[dim]{frame} Thinking... ({elapsed})[/]"
 
-        # Rich render → single atomic \r overwrite (no flicker)
         rendered = console.render_str(rich_str, highlight=False)
         sys.stdout.write(f"\r{rendered}\033[K")
         sys.stdout.flush()
 
     async def _animate(self):
         while not self._stop_event.is_set():
-            self._print_status()
-            if (time.time() - self.start_time) > 5:
-                self._phase_idx = 1
-            await asyncio.sleep(0.3)
+            if self._pause_event.is_set():
+                self._print_status()
+                self._frame_idx += 1
+            await asyncio.sleep(self._FRAME_INTERVAL)
 
     def start(self):
         self._task = asyncio.create_task(self._animate())
+
+    def pause(self):
+        """Pause the spinner animation and clear the status line."""
+        import sys
+        self._pause_event.clear()
+        sys.stdout.write("\r\033[K")
+        sys.stdout.flush()
+
+    def resume(self):
+        """Resume the spinner animation."""
+        self._pause_event.set()
 
     def update_tokens(self, new_tokens: int):
         """Update token count and refresh display."""
@@ -148,16 +157,15 @@ class StreamingStatus:
         self._print_status()
 
     async def stop(self) -> tuple[float, int]:
-        """Stop the animation and return stats."""
+        """Stop the status display and return stats."""
         import sys
 
         self._stop_event.set()
         if self._task:
             try:
-                await asyncio.wait_for(self._task, timeout=0.5)
+                await asyncio.wait_for(self._task, timeout=1.0)
             except asyncio.TimeoutError:
                 pass
-        # Clear the status line with raw ANSI
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
         return time.time() - self.start_time, self.tokens
@@ -902,8 +910,41 @@ async def _run_connected(session_holder: list[AgentSession]) -> None:
     active session without changing the reference in the caller.
     """
     from ..tools import default_registry
+    from ..permissions import build_security_gate
 
-    registry = default_registry()
+    # Mutable reference to the current status (set each turn)
+    current_status: list[StreamingStatus | None] = [None]
+
+    async def confirm_callback(tool_name: str, reason: str) -> bool:
+        """Ask user for tool permission with styled choice dialog."""
+        # Pause spinner while waiting for user input
+        if current_status[0]:
+            current_status[0].pause()
+        try:
+            dialog = ChoiceInput(
+                message=f"Security: {tool_name}",
+                options=[
+                    ("allow", "Allow once"),
+                    ("deny", "Deny"),
+                ],
+                style=CHOICE_STYLE,
+                show_frame=True,
+            )
+            # Print warning above the dialog
+            console.print(
+                f"\n[bold yellow]⚠  {reason}[/bold yellow]\n"
+            )
+            selected = await dialog.prompt_async()
+            return selected == "allow"
+        except (EOFError, KeyboardInterrupt):
+            return False
+        finally:
+            # Resume spinner after user responds
+            if current_status[0]:
+                current_status[0].resume()
+
+    security = build_security_gate(confirm_callback=confirm_callback)
+    registry = default_registry(security=security)
     tools_schema = registry.make_schema()
 
     prompt_session = _create_prompt_session()
@@ -937,6 +978,7 @@ async def _run_connected(session_holder: list[AgentSession]) -> None:
         try:
             # Spinner while waiting for API
             status = StreamingStatus()
+            current_status[0] = status
             status.start()
 
             # Run agentic turn (handles tool loop internally)
@@ -947,6 +989,7 @@ async def _run_connected(session_holder: list[AgentSession]) -> None:
             )
 
             elapsed, _ = await status.stop()
+            current_status[0] = None
 
             # Display tool invocations
             for inv in turn.tool_invocations:

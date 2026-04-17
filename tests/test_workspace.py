@@ -254,8 +254,11 @@ class AgentEnvAndSdkTests(unittest.TestCase):
         with patch.object(
             settings_module, "load_settings", return_value=blank_settings
         ):
-            with patch.dict("os.environ", {}, clear=True):
-                self.assertEqual(settings_module.get_model(), "glm-5")
+            with patch.object(
+                settings_module, "_get_claude_code_env", return_value=""
+            ):
+                with patch.dict("os.environ", {}, clear=True):
+                    self.assertEqual(settings_module.get_model(), "glm-5")
 
     @unittest.skipUnless(
         _cli_available(), "agent.py needs anthropic SDK (not installed)"

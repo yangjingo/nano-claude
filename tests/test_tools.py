@@ -190,11 +190,11 @@ class TestBashShellDetection(unittest.TestCase):
     def setUp(self):
         # Force cache clear before each test
         import src.tools.bash as bash_mod
-        bash_mod._SHELL_CACHE = None
+        bash_mod._SHELL_CACHE = False
 
     def tearDown(self):
         import src.tools.bash as bash_mod
-        bash_mod._SHELL_CACHE = None
+        bash_mod._SHELL_CACHE = False
 
     def test_linux_returns_bash(self):
         import src.tools.bash as bash_mod
@@ -202,49 +202,28 @@ class TestBashShellDetection(unittest.TestCase):
             shell = bash_mod._detect_shell()
         self.assertEqual(shell, ["/bin/bash", "-c"])
 
-    def test_windows_wsl(self):
-        """Windows host with WSL available → delegate to wsl bash."""
+    def test_macos_returns_bash(self):
         import src.tools.bash as bash_mod
-        def fake_which(cmd):
-            return "wsl.exe" if cmd == "wsl" else None
-        with patch("src.tools.bash.sys.platform", "win32"), \
-             patch("src.tools.bash.shutil.which", side_effect=fake_which):
+        with patch("src.tools.bash.sys.platform", "darwin"):
             shell = bash_mod._detect_shell()
-        self.assertEqual(shell, ["wsl", "bash", "-c"])
+        self.assertEqual(shell, ["/bin/bash", "-c"])
 
-    def test_windows_git_bash(self):
-        """Windows host, no WSL, Git Bash available."""
+    def test_windows_returns_none(self):
+        """Windows native — bash is not available (use PowerShell instead)."""
         import src.tools.bash as bash_mod
-        def fake_which(cmd):
-            if cmd == "wsl":
-                return None  # WSL not available
-            if cmd == "bash":
-                return "C:\\Git\\bin\\bash.exe"
-            return None
-        with patch("src.tools.bash.sys.platform", "win32"), \
-             patch("src.tools.bash.shutil.which", side_effect=fake_which):
+        with patch("src.tools.bash.sys.platform", "win32"):
             shell = bash_mod._detect_shell()
-        self.assertEqual(shell[0], "C:\\Git\\bin\\bash.exe")
-        self.assertIn("--norc", shell)
-        self.assertIn("--noprofile", shell)
+        self.assertIsNone(shell)
 
-    def test_windows_cmd_fallback(self):
-        """Windows host, no WSL, no Git Bash → cmd.exe fallback."""
+    def test_bash_available_on_linux(self):
         import src.tools.bash as bash_mod
-        with patch("src.tools.bash.sys.platform", "win32"), \
-             patch("src.tools.bash.shutil.which", return_value=None), \
-             patch.dict("src.tools.bash.os.environ", {"COMSPEC": "C:\\Windows\\cmd.exe"}, clear=False):
-            shell = bash_mod._detect_shell()
-        self.assertEqual(shell, ["C:\\Windows\\cmd.exe", "/c"])
+        with patch("src.tools.bash.sys.platform", "linux"):
+            self.assertTrue(bash_mod.bash_available())
 
-    def test_windows_no_comspec(self):
-        """Windows host, no WSL, no Git Bash, no COMSPEC → bare cmd.exe."""
+    def test_bash_not_available_on_windows(self):
         import src.tools.bash as bash_mod
-        with patch("src.tools.bash.sys.platform", "win32"), \
-             patch("src.tools.bash.shutil.which", return_value=None), \
-             patch.dict("src.tools.bash.os.environ", {}, clear=True):
-            shell = bash_mod._detect_shell()
-        self.assertEqual(shell, ["cmd.exe", "/c"])
+        with patch("src.tools.bash.sys.platform", "win32"):
+            self.assertFalse(bash_mod.bash_available())
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +265,14 @@ class TestBashExecute(unittest.IsolatedAsyncioTestCase):
         mock_proc.kill.assert_called_once()
         mock_proc.wait.assert_called_once()
 
+    @patch("src.tools.bash._detect_shell", return_value=None)
+    async def test_execute_no_shell(self, mock_shell):
+        """On Windows without bash, execute returns an error."""
+        import src.tools.bash as bash_mod
+        result = await bash_mod.execute("echo hello")
+        self.assertIn("error", result)
+        self.assertIn("not available", result)
+
 
 # ---------------------------------------------------------------------------
 # default_registry — all built-in tools loaded
@@ -293,21 +280,39 @@ class TestBashExecute(unittest.IsolatedAsyncioTestCase):
 
 class TestDefaultRegistry(unittest.TestCase):
 
-    def test_default_registry_has_six_tools(self):
+    def test_default_registry_has_file_tools_and_shell(self):
         from src.tools import default_registry
         reg = default_registry()
-        self.assertEqual(
-            set(reg.list_names()),
-            {"Bash", "Read", "Write", "Edit", "Glob", "Grep"},
-        )
+        names = set(reg.list_names())
+        # 5 file tools always present
+        self.assertGreaterEqual(names, {"Read", "Write", "Edit", "Glob", "Grep"})
+        # Exactly one shell tool
+        shell_tools = names & {"Bash", "PowerShell"}
+        self.assertEqual(len(shell_tools), 1, f"Expected exactly 1 shell tool, got {shell_tools}")
 
     def test_default_registry_schema_valid(self):
         from src.tools import default_registry
-        schema = default_registry().make_schema()
+        reg = default_registry()
+        schema = reg.make_schema()
         self.assertEqual(len(schema), 6)
         for s in schema:
             self.assertIn("name", s)
             self.assertIn("input_schema", s)
+
+    def test_default_registry_with_security(self):
+        from src.tools import default_registry
+        from src.tools.security import SecurityGate
+        gate = SecurityGate()
+        reg = default_registry(security=gate)
+        self.assertEqual(len(reg.list_names()), 6)
+
+    def test_default_registry_no_security_backwards_compat(self):
+        """default_registry() without security param works as before."""
+        from src.tools import default_registry
+        reg = default_registry()
+        # Without security, tool runs are not blocked
+        names = reg.list_names()
+        self.assertIn("Read", names)
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ from typing import Any, AsyncIterator
 
 from anthropic import AsyncAnthropic
 from anthropic.types import ContentBlockStopEvent, ContentBlockDeltaEvent
+import anthropic
 
 from .settings import get_api_key, get_base_url, get_model
 
@@ -89,21 +90,51 @@ async def stream_agent_prompt(
 
 SYSTEM_PROMPT = (
     "You are nano-claude, WhyJ's learning project — a Python port of Claude Code.\n"
-    "You are concise, direct, and Chinese-friendly. Keep responses short."
+    "You are concise, direct, and Chinese-friendly. Keep responses short.\n"
+    "\n"
+    "## Tool Safety Guidelines\n"
+    "\n"
+    "When using Bash/PowerShell, only use these safe command categories:\n"
+    "- File inspection: ls, cat, head, tail, less, wc, diff, file, stat, tree\n"
+    "- Dir/path: pwd, cd, which, where, dirname, basename, realpath, readlink\n"
+    "- Text utils: echo, grep, find, sort\n"
+    "- Git (safe): status, log, diff, show, add, commit, push (no --force), pull, fetch,\n"
+    "  clone, stash, branch (-a/-d/-m), tag, remote, blame, reflog, checkout (-b),\n"
+    "  reset --soft, config, help, ls-files, ls-tree, rev-parse, shortlog\n"
+    "- Python/uv/pip: pytest, --version, pip list/show, uv run/pip/add/remove/sync\n"
+    "- System info: whoami, date, uname, env, printenv, hostname\n"
+    "- npm/node: npm list/ls/show, node --version\n"
+    "- tar/zip: tar (extract/list/create), unzip -l, zipinfo\n"
+    "\n"
+    "Forbidden: sudo, rm -rf, shutdown, reboot, git push --force,\n"
+    "  git reset --hard, git branch -D, git clean -fd, chmod 777, pipe to bash/sh,\n"
+    "  Format-*, Stop-Computer, Restart-Computer, Invoke-Expression\n"
+    "\n"
+    "For file operations, prefer dedicated tools (Read/Write/Edit/Glob/Grep)\n"
+    "over shell commands whenever possible."
 )
 
 
 def _build_context_block() -> str:
     """Build runtime context (platform, shell, cwd) as a message-level block."""
-    from ..tools.bash import get_shell_info
-
-    shell = get_shell_info()
-    if "bash" in shell.lower():
-        shell_hint = "bash (use Unix shell syntax: forward slashes, /dev/null, &&, etc.)"
-    elif "cmd" in shell.lower():
-        shell_hint = "cmd.exe (use Windows syntax: backslashes, NUL, &, dir, etc.)"
+    if sys.platform == "win32":
+        try:
+            from ..tools.powershell import pwsh_available
+            if pwsh_available():
+                shell_hint = "PowerShell 7+ (pwsh — use PowerShell syntax: pipes, cmdlets, etc.)"
+            else:
+                from ..tools.bash import get_shell_info
+                shell_hint = get_shell_info()
+        except ImportError:
+            from ..tools.bash import get_shell_info
+            shell_hint = get_shell_info()
     else:
-        shell_hint = shell
+        from ..tools.bash import get_shell_info
+        shell = get_shell_info()
+        if "bash" in shell.lower():
+            shell_hint = "bash (use Unix shell syntax: forward slashes, /dev/null, &&, etc.)"
+        else:
+            shell_hint = shell
 
     return (
         f"[context] Platform: {sys.platform} | "
@@ -480,6 +511,32 @@ class AgentSession:
             },
         )
 
+    async def _create_with_retry(
+        self, max_retries: int = 3, **kwargs: Any,
+    ) -> Any:
+        """Call messages.create with retry on 529 (overloaded) and 429 (rate limit)."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+        for attempt in range(max_retries + 1):
+            try:
+                return await self.client.messages.create(**kwargs)
+            except anthropic.RateLimitError as e:
+                if attempt < max_retries:
+                    wait = 2 ** (attempt + 1)
+                    logger.warning(f"Rate limited, retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+            except anthropic.APIStatusError as e:
+                if e.status_code == 529 and attempt < max_retries:
+                    wait = 3 ** (attempt + 1)
+                    logger.warning(f"API overloaded (529), retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+        return None  # unreachable
+
     async def run_turn(
         self,
         prompt: str,
@@ -517,7 +574,7 @@ class AgentSession:
             if tools:
                 kwargs["tools"] = tools
 
-            response = await self.client.messages.create(**kwargs)
+            response = await self._create_with_retry(**kwargs)
 
             # Store full content blocks (including tool_use) in history
             self.messages.append(

@@ -80,20 +80,31 @@ def _get_claude_code_env(key: str) -> str:
 def _resolve(key: str, *os_env_keys: str, fallback: str = "") -> str:
     """Resolve a setting value with priority:
 
-    1. nano-claude settings.json env
-    2. OS environment variables (os_env_keys)
-    3. Claude Code ~/.claude/settings.json env (mapped)
-    4. fallback
+    1. nano-claude settings.json env (nano-claude key name)
+    2. nano-claude settings.json env (Claude Code mapped key name)
+    3. OS environment variables (os_env_keys)
+    4. Claude Code ~/.claude/settings.json env (mapped)
+    5. fallback
     """
     settings = load_settings()
+    # Step 1: nano-claude specific key
     nano_val = settings.env.get(key, "").strip()
     if nano_val:
         return nano_val
+    # Step 2: also check Claude Code mapped key in nano-claude settings
+    # (users may use ANTHROPIC_* key names in their nano-claude settings)
+    cc_key = _CLAUDE_CODE_ENV_MAP.get(key)
+    if cc_key and cc_key != key:
+        cc_val = settings.env.get(cc_key, "").strip()
+        if cc_val:
+            return cc_val
     import os
+    # Step 3: OS env vars
     for ek in os_env_keys:
         val = os.environ.get(ek, "").strip()
         if val:
             return val
+    # Step 4: Claude Code settings fallback
     cc_val = _get_claude_code_env(key)
     if cc_val:
         return cc_val
@@ -153,7 +164,24 @@ def get_base_url() -> str:
 
 
 def get_model() -> str:
-    """Get current model (sonnet tier): nano-claude settings → env → Claude Code settings."""
+    """Get current model with priority:
+
+    1. Generic ANTHROPIC_MODEL override (from settings or env)
+    2. Tier-specific SONNET_MODEL (from settings → env → Claude Code)
+    3. fallback
+    """
+    # Check generic model override first
+    settings = load_settings()
+    for generic_key in ("ANTHROPIC_MODEL", "NANO_CLAUDE_MODEL"):
+        val = settings.env.get(generic_key, "").strip()
+        if val:
+            return val
+    import os
+    for generic_key in ("ANTHROPIC_MODEL", "NANO_CLAUDE_MODEL"):
+        val = os.environ.get(generic_key, "").strip()
+        if val:
+            return val
+    # Fall back to tier-specific sonnet model
     return _resolve(
         "NANO_CLAUDE_DEFAULT_SONNET_MODEL",
         "NANO_CLAUDE_DEFAULT_SONNET_MODEL",
@@ -164,6 +192,18 @@ def get_model() -> str:
 
 def get_actual_model(tier: str) -> str:
     """Get actual model name for a tier (haiku/sonnet/opus): nano-claude → env → Claude Code."""
+    # Check generic model override first (applies to all tiers)
+    settings = load_settings()
+    for generic_key in ("ANTHROPIC_MODEL", "NANO_CLAUDE_MODEL"):
+        val = settings.env.get(generic_key, "").strip()
+        if val:
+            return val
+    import os
+    for generic_key in ("ANTHROPIC_MODEL", "NANO_CLAUDE_MODEL"):
+        val = os.environ.get(generic_key, "").strip()
+        if val:
+            return val
+    # Fall back to tier-specific model
     tier_key = f"NANO_CLAUDE_DEFAULT_{tier.upper()}_MODEL"
     claude_os_key = f"ANTHROPIC_DEFAULT_{tier.upper()}_MODEL"
     return _resolve(
