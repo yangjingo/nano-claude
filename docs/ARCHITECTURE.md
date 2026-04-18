@@ -47,24 +47,41 @@ async with client.messages.stream(
 }
 ```
 
+也支持直接使用 Claude Code 风格的 key 名（两种风格可混用）：
+
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "your-key",
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
+    "ANTHROPIC_MODEL": "MiniMax-M2.7",
+    "ANTHROPIC_SMALL_FAST_MODEL": "MiniMax-M2.5"
+  }
+}
+```
+
+通用模型字段 `ANTHROPIC_MODEL` / `NANO_CLAUDE_MODEL` 为最高优先级，设置后覆盖所有 tier（haiku/sonnet/opus）。
+
 ### 配置回退链
 
 当 nano-claude 自身配置为空时，自动从 Claude Code 的 `~/.claude/settings.json` 回退读取，优先级：
 
-1. **nano-claude** `~/.nano-claude/settings.json` env
-2. **OS 环境变量**
-3. **Claude Code** `~/.claude/settings.json` env（自动映射变量名）
-4. **硬编码默认值**
+1. **nano-claude** `~/.nano-claude/settings.json` env（`NANO_CLAUDE_*` key 名）
+2. **nano-claude** `~/.nano-claude/settings.json` env（`ANTHROPIC_*` 映射 key 名）
+3. **OS 环境变量**
+4. **Claude Code** `~/.claude/settings.json` env（自动映射变量名）
+5. **硬编码默认值**
 
 环境变量名映射（nano-claude ↔ Claude Code）：
 
-| nano-claude | Claude Code |
-|-------------|-------------|
-| `NANO_CLAUDE_API_KEY` | `ANTHROPIC_AUTH_TOKEN` |
-| `NANO_CLAUDE_BASE_URL` | `ANTHROPIC_BASE_URL` |
-| `NANO_CLAUDE_DEFAULT_SONNET_MODEL` | `ANTHROPIC_DEFAULT_SONNET_MODEL` |
-| `NANO_CLAUDE_DEFAULT_OPUS_MODEL` | `ANTHROPIC_DEFAULT_OPUS_MODEL` |
-| `NANO_CLAUDE_DEFAULT_HAIKU_MODEL` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` |
+| nano-claude | Claude Code | 说明 |
+|-------------|-------------|------|
+| `NANO_CLAUDE_API_KEY` | `ANTHROPIC_AUTH_TOKEN` | API 密钥 |
+| `NANO_CLAUDE_BASE_URL` | `ANTHROPIC_BASE_URL` | API 基地址 |
+| `NANO_CLAUDE_MODEL` | `ANTHROPIC_MODEL` | 通用模型（覆盖所有 tier） |
+| `NANO_CLAUDE_DEFAULT_SONNET_MODEL` | `ANTHROPIC_DEFAULT_SONNET_MODEL` | Sonnet tier 模型 |
+| `NANO_CLAUDE_DEFAULT_OPUS_MODEL` | `ANTHROPIC_DEFAULT_OPUS_MODEL` | Opus tier 模型 |
+| `NANO_CLAUDE_DEFAULT_HAIKU_MODEL` | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Haiku tier 模型 |
 
 ---
 

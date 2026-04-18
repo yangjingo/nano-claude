@@ -45,7 +45,9 @@ src/
 │   └── eyes.py              # Eye color assignment
 ├── tools/
 │   ├── __init__.py
-│   └── bash.py              # Bash tool implementation
+│   ├── security.py          # SecurityGate, PathSandbox, CommandWhitelist, SecurityConfig
+│   ├── bash.py              # Bash tool (Unix-only)
+│   └── powershell.py        # PowerShell tool (pwsh 7+)
 ├── __init__.py              # Package exports
 ├── models.py                # Shared dataclasses (Subsystem, PortingModule, etc.)
 ├── context.py               # System prompt context builder
@@ -146,7 +148,9 @@ REPL (cli/repl.py)
 
 - Commit convention: conventional commits (`feat(scope):`, `fix:`, `docs:`, etc.) — see `docs/COMMIT.md`
 - User config at `~/.nano-claude/settings.json`; project data at `.nano_claude/`
-- Settings fallback chain: nano-claude settings → OS env vars → Claude Code `~/.claude/settings.json` → hardcoded defaults
+- Settings support both `NANO_CLAUDE_*` and `ANTHROPIC_*` key names in the same file
+- Generic `ANTHROPIC_MODEL` / `NANO_CLAUDE_MODEL` overrides all tier-specific models (highest priority)
+- Settings fallback chain: nano-claude settings (both key styles) → OS env vars → Claude Code `~/.claude/settings.json` → hardcoded defaults
 - Env var name mapping: `NANO_CLAUDE_API_KEY` ↔ `ANTHROPIC_AUTH_TOKEN`, `NANO_CLAUDE_BASE_URL` ↔ `ANTHROPIC_BASE_URL`, etc.
 - The `archive/` directory, `__pycache__/`, and `.nano_claude/` are gitignored
 - Docs in `docs/`: `ARCHITECTURE.md` (architecture), `COMMANDS.md` (CLI commands), `COMMIT.md` (commit convention), `posts/` (blog posts)

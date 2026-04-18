@@ -533,6 +533,49 @@ print(result.summary())
 
 ---
 
+## 与 Hermes Agent 的对比
+
+> 详细设计见 [Hermes Agent Design](./hermes-design.md)
+
+Hermes Agent 采用 4 层记忆系统 + 自学习循环，与 nano-claude 的 7 层纵深防御形成互补视角：
+
+| 维度 | nano-claude (7 层) | Hermes Agent (4 层) |
+|------|-------------------|---------------------|
+| **存储后端** | 文件系统 (Markdown) | SQLite (FTS5) + Markdown |
+| **常驻索引** | MEMORY.md (200 行硬限) | MEMORY.md + USER.md (3575 字符硬限) |
+| **历史检索** | 转录文件扫描 + 关键词匹配 | SQLite FTS5 全文索引 + LLM 摘要 |
+| **巩固机制** | /dream 血月（手动/Cron 定时） | 任务后自动判断 + Skill 生成 |
+| **自学习** | 无内置（依赖 /dream 信号提取） | 有（失败修复/纠正/非平凡路径 → Skill） |
+| **技能进化** | 无 | patch 补丁式持续更新 |
+| **上下文策略** | 全量加载索引 | 按需加载 + LLM 摘要注入 |
+| **用户建模** | 无独立层 | Honcho 独立层（被动积累） |
+| **跨 Agent 兼容** | 无 | agentskills.io 开放标准 |
+
+### 关键差异分析
+
+**nano-claude 的优势**：
+- 7 层纵深防御更细粒度（大输出落盘、缓存微压缩、摘要熔断等）
+- 文件系统存储零依赖，可读性强，Git 友好
+- 血月隐喻提供直观的周期性巩固模型
+
+**Hermes Agent 的优势**：
+- 自学习循环：自动从执行中沉淀 Skill，无需手动触发
+- SQLite FTS5 比文件扫描更高效的历史检索
+- 上下文经济：按需加载 + 3575 字符硬限强迫筛选
+- Skill 进化：patch 补丁式更新，技能持续改进
+- 开放标准：agentskills.io 格式可跨 Agent 使用
+
+### 可借鉴方向
+
+1. **自学习循环** — 任务完成后自动评估是否值得沉淀为 Skill
+2. **按需加载** — 系统提示只加载名称+描述，全文按需调入
+3. **SQLite FTS5** — 替代文件扫描，提升历史检索效率
+4. **patch 补丁** — 记忆更新用精准替换而非整体重写
+5. **知识图谱** — 参考 [graphify](https://github.com/safishamsi/graphify)，用 Leiden 社区发现 + SHA256 缓存把转录/记忆文件结构化
+6. **watch 文件监听** — 代码改动触发实时图谱更新，文档变更提醒增量处理
+
+---
+
 ## 未来扩展
 
 1. **记忆迁移** - 跨项目复制记忆
@@ -540,6 +583,10 @@ print(result.summary())
 3. **血月日志** - 记录每次血月的巩固详情
 4. **Buddy 互动** - Buddy 评论血月结果
 5. **自定义关键词** - 用户扩展匹配规则
+6. **自学习循环** - 参考 Hermes，任务后自动生成 Skill 文件
+7. **SQLite FTS5** - 替代转录文件扫描，提升历史检索效率
+8. **Skill 按需加载** - 系统提示只加载名称+描述，全文按需调入
+9. **知识图谱集成** - 参考 graphify，将记忆文件转化为可查询图谱
 
 ---
 
@@ -548,4 +595,7 @@ print(result.summary())
 - [Claude Memory System](https://docs.anthropic.com/claude-code/memory)
 - [YAML Frontmatter](https://jekyllrb.com/docs/frontmatter/)
 - [Buddy Design](./buddy-design.md)
+- [Hermes Agent Design](./hermes-design.md)
+- [Karpathy LLM Wiki (GitHub Gist)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+- [graphify — 知识图谱 Skill](https://github.com/safishamsi/graphify/blob/v3/README.zh-CN.md)
 - [Zelda: Blood Moon](https://zelda.fandom.com/wiki/Blood_Moon)
