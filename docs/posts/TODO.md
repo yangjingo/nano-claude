@@ -72,18 +72,32 @@
 
 ## 进行中
 
-- [ ] 无
+### Context Engineering（P1 — 当前重点）
+- [ ] `SessionContext` — 运行时上下文管理器（动态 refresh + render）
+- [ ] 上下文注入到 user message 前缀（per-turn 刷新）
+- [ ] Microcompact — 时间基础工具结果清理（5min / 20min 阈值）
+- [ ] 工具结果截断（MAX_TOOL_RESULT_LINES = 500）
+- [ ] 完整对话摘要（full_compact，保留最近 6 轮）
+- [ ] Token 计数器 + 自动压缩阈值检测
+- [ ] Compact 事件通知用户（透明性）
+
+> 设计文档：`docs/posts/context-design.md`
+
+### 插件系统（P1 — 当前重点）
+- [ ] Skill 安装/加载机制（SKILL.md 发现 + 执行）
+- [ ] 插件生命周期管理（install/enable/disable）
+- [ ] 插件提供的 tool/command/MCP 扩展点
 
 ---
 
 ## 待开始
 
-### 工具系统（P1）
+### 工具系统（P2）
 - [ ] `AskUserQuestion` — 交互式问答工具
 - [ ] `Task*` — 任务管理工具组（Create/Get/List/Output/Stop/Update）
 - [ ] `Agent` — 子 agent 生成工具
 
-### 工具系统（P2-P3）
+### 工具系统（P3）
 - [ ] `WebFetch` / `WebSearch` — 网络访问
 - [ ] `MCPTool` / `McpAuth` — MCP 协议支持
 - [ ] `LSP` — 语言服务协议
@@ -91,28 +105,27 @@
 - [ ] `NotebookEdit` — Jupyter notebook 编辑
 - [ ] `EnterPlanMode` / `ExitPlanMode` — 计划模式
 
-### 权限系统
-- [ ] `PermissionGate` — 三级权限（auto-approve / context-aware / always-ask）
-- [ ] 危险命令检测（rm -rf, git push --force, DROP TABLE）
-- [ ] REPL 交互式审批（y/n 确认）
+### 权限系统（已完成）
+- [x] `SecurityGate` — 三级权限（AUTO_APPROVE / CONTEXT_AWARE / ALWAYS_ASK）
+- [x] `CoreDangerDetector` — 致命命令检测（sudo, rm -rf, shutdown, chmod 777 等）
+- [x] `PathSandbox` — 路径沙箱（/etc/, ~/.ssh/, ~/.aws/ 等）
+- [x] `SensitiveFileChecker` — 敏感文件检测（.env, credentials, .pem 等）
+- [x] REPL 交互式审批（ChoiceInput 确认框 + spinner 暂停）
+- [x] 命令安全指导迁移到 SYSTEM_PROMPT（替代正则白名单）
+- [x] 508 行测试覆盖全部安全组件
 
 ### CLI 增强
 - [ ] `/help` 详细帮助
 - [ ] `/history` 对话历史浏览
 
 ### Agent 增强
-- [ ] Token 计数与预算控制
 - [ ] 多模型切换（OpenAI, Gemini, etc.）
-
-### 插件系统
-- [ ] Skill 安装/加载机制（SKILL.md 发现 + 执行）
-- [ ] 插件生命周期管理（install/enable/disable）
-- [ ] 插件提供的 tool/command/MCP 扩展点
 
 ### 测试覆盖
 - [ ] 单元测试覆盖率 > 80%
 - [ ] 更多 E2E 场景
 - [ ] Memory system 集成测试
+- [ ] Context engineering 测试
 
 ### 文档
 - [ ] API 文档
@@ -132,7 +145,7 @@
 
 ```
 P0 (核心)  → ✅ 已完成（CLI, Agent, 6 个工具, Memory, Session）
-P1 (扩展)  → 更多工具, 权限系统, 插件系统
-P2 (增强)  → 文档, 性能优化, 测试覆盖
+P1 (当前)  → Context Engineering + 插件系统
+P2 (扩展)  → 更多工具, 测试覆盖（权限系统已完成）
 P3 (探索)  → MCP, 多模型, Web UI
 ```
