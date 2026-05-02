@@ -1,0 +1,361 @@
+{
+  "id": "2026-04-06-132524",
+  "generated_at": "2026-04-06T05:25:24.8642112Z",
+  "language": "zh",
+  "pages": [
+    {
+      "slug": "1-xiang-mu-gai-lan-claude-code-yuan-ma-kuai-zhao-de-jie-zhi-yu-ding-wei",
+      "title": "项目概览：Claude Code 源码快照的价值与定位",
+      "file": "1-xiang-mu-gai-lan-claude-code-yuan-ma-kuai-zhao-de-jie-zhi-yu-ding-wei.md",
+      "section": "快速入门",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-dai-ma-cang-ku-dao-hang-mu-lu-jie-gou-yu-he-xin-mo-kuai-di-tu",
+      "title": "代码仓库导航：目录结构与核心模块地图",
+      "file": "2-dai-ma-cang-ku-dao-hang-mu-lu-jie-gou-yu-he-xin-mo-kuai-di-tu.md",
+      "section": "快速入门",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-cong-main-tsx-kai-shi-cli-qi-dong-liu-cheng-yu-chu-shi-hua",
+      "title": "从 main.tsx 开始：CLI 启动流程与初始化",
+      "file": "3-cong-main-tsx-kai-shi-cli-qi-dong-liu-cheng-yu-chu-shi-hua.md",
+      "section": "快速入门",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "4-kuai-zhao-fen-xi-huan-jing-da-jian-yu-chang-yong-ming-ling",
+      "title": "快照分析环境搭建与常用命令",
+      "file": "4-kuai-zhao-fen-xi-huan-jing-da-jian-yu-chang-yong-ming-ling.md",
+      "section": "快速入门",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "5-queryengine-llm-cha-xun-xun-huan-yu-gong-ju-diao-du-he-xin",
+      "title": "QueryEngine：LLM 查询循环与工具调度核心",
+      "file": "5-queryengine-llm-cha-xun-xun-huan-yu-gong-ju-diao-du-he-xin.md",
+      "section": "深入理解：核心架构",
+      "group": "查询引擎与工具执行",
+      "level": "Advanced"
+    },
+    {
+      "slug": "6-gong-ju-xi-tong-jia-gou-cong-tool-jie-kou-dao-40-gong-ju-shi-xian",
+      "title": "工具系统架构：从 Tool 接口到 40+ 工具实现",
+      "file": "6-gong-ju-xi-tong-jia-gou-cong-tool-jie-kou-dao-40-gong-ju-shi-xian.md",
+      "section": "深入理解：核心架构",
+      "group": "查询引擎与工具执行",
+      "level": "Advanced"
+    },
+    {
+      "slug": "7-ming-ling-xi-tong-she-ji-50-xie-gang-ming-ling-de-zu-zhi-yu-zhu-ce",
+      "title": "命令系统设计：50+ 斜杠命令的组织与注册",
+      "file": "7-ming-ling-xi-tong-she-ji-50-xie-gang-ming-ling-de-zu-zhi-yu-zhu-ce.md",
+      "section": "深入理解：核心架构",
+      "group": "查询引擎与工具执行",
+      "level": "Advanced"
+    },
+    {
+      "slug": "8-bing-fa-zhi-xing-ce-lue-gong-ju-pi-chu-li-yu-an-quan-pan-ding",
+      "title": "并发执行策略：工具批处理与安全判定",
+      "file": "8-bing-fa-zhi-xing-ce-lue-gong-ju-pi-chu-li-yu-an-quan-pan-ding.md",
+      "section": "深入理解：核心架构",
+      "group": "查询引擎与工具执行",
+      "level": "Advanced"
+    },
+    {
+      "slug": "9-quan-xian-mo-shi-xi-tong-default-plan-auto-bypass-deng-mo-shi-jie-xi",
+      "title": "权限模式系统：default、plan、auto、bypass 等模式解析",
+      "file": "9-quan-xian-mo-shi-xi-tong-default-plan-auto-bypass-deng-mo-shi-jie-xi.md",
+      "section": "深入理解：核心架构",
+      "group": "权限与安全机制",
+      "level": "Advanced"
+    },
+    {
+      "slug": "10-bash-gong-ju-an-quan-zhi-du-pan-ding-yu-hou-tai-zhi-xing-ce-lue",
+      "title": "Bash 工具安全：只读判定与后台执行策略",
+      "file": "10-bash-gong-ju-an-quan-zhi-du-pan-ding-yu-hou-tai-zhi-xing-ce-lue.md",
+      "section": "深入理解：核心架构",
+      "group": "权限与安全机制",
+      "level": "Advanced"
+    },
+    {
+      "slug": "11-quan-xian-qing-qiu-liu-cheng-yong-hu-jiao-hu-yu-jue-ce-chuan-bo",
+      "title": "权限请求流程：用户交互与决策传播",
+      "file": "11-quan-xian-qing-qiu-liu-cheng-yong-hu-jiao-hu-yu-jue-ce-chuan-bo.md",
+      "section": "深入理解：核心架构",
+      "group": "权限与安全机制",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-appstate-she-ji-react-zhuang-tai-guan-li-yu-ding-yue-ji-zhi",
+      "title": "AppState 设计：React 状态管理与订阅机制",
+      "file": "12-appstate-she-ji-react-zhuang-tai-guan-li-yu-ding-yue-ji-zhi.md",
+      "section": "深入理解：核心架构",
+      "group": "状态管理与数据流",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "13-wen-jian-huan-cun-yu-du-qu-you-hua-filestatecache-shi-xian",
+      "title": "文件缓存与读取优化：FileStateCache 实现",
+      "file": "13-wen-jian-huan-cun-yu-du-qu-you-hua-filestatecache-shi-xian.md",
+      "section": "深入理解：核心架构",
+      "group": "状态管理与数据流",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "14-hui-hua-chi-jiu-hua-sessionstorage-yu-dui-hua-hui-fu",
+      "title": "会话持久化：sessionStorage 与对话恢复",
+      "file": "14-hui-hua-chi-jiu-hua-sessionstorage-yu-dui-hua-hui-fu.md",
+      "section": "深入理解：核心架构",
+      "group": "状态管理与数据流",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-mcp-ke-hu-duan-shi-xian-lian-jie-guan-li-yu-gong-ju-fa-xian",
+      "title": "MCP 客户端实现：连接管理与工具发现",
+      "file": "15-mcp-ke-hu-duan-shi-xian-lian-jie-guan-li-yu-gong-ju-fa-xian.md",
+      "section": "深入理解：集成与扩展",
+      "group": "MCP 协议集成",
+      "level": "Advanced"
+    },
+    {
+      "slug": "16-mcp-gong-ju-diao-yong-mcptool-yu-zi-yuan-fang-wen",
+      "title": "MCP 工具调用：MCPTool 与资源访问",
+      "file": "16-mcp-gong-ju-diao-yong-mcptool-yu-zi-yuan-fang-wen.md",
+      "section": "深入理解：集成与扩展",
+      "group": "MCP 协议集成",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "17-mcp-fu-wu-qi-pei-zhi-yu-ren-zheng-liu-cheng",
+      "title": "MCP 服务器配置与认证流程",
+      "file": "17-mcp-fu-wu-qi-pei-zhi-yu-ren-zheng-liu-cheng.md",
+      "section": "深入理解：集成与扩展",
+      "group": "MCP 协议集成",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "18-bridge-zhu-xun-huan-ide-shuang-xiang-tong-xin-xie-yi",
+      "title": "Bridge 主循环：IDE 双向通信协议",
+      "file": "18-bridge-zhu-xun-huan-ide-shuang-xiang-tong-xin-xie-yi.md",
+      "section": "深入理解：集成与扩展",
+      "group": "Bridge 系统与远程控制",
+      "level": "Advanced"
+    },
+    {
+      "slug": "19-hui-hua-guan-li-sessionrunner-yu-duo-huan-jing-zhi-chi",
+      "title": "会话管理：sessionRunner 与多环境支持",
+      "file": "19-hui-hua-guan-li-sessionrunner-yu-duo-huan-jing-zhi-chi.md",
+      "section": "深入理解：集成与扩展",
+      "group": "Bridge 系统与远程控制",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "20-jwt-ren-zheng-yu-shou-xin-ren-she-bei-ji-zhi",
+      "title": "JWT 认证与受信任设备机制",
+      "file": "20-jwt-ren-zheng-yu-shou-xin-ren-she-bei-ji-zhi.md",
+      "section": "深入理解：集成与扩展",
+      "group": "Bridge 系统与远程控制",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "21-nei-zhi-cha-jian-zhu-ce-builtinplugin-ji-zhi",
+      "title": "内置插件注册：BuiltinPlugin 机制",
+      "file": "21-nei-zhi-cha-jian-zhu-ce-builtinplugin-ji-zhi.md",
+      "section": "深入理解：集成与扩展",
+      "group": "插件与技能系统",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "22-ji-neng-xi-tong-bundledskill-yu-ming-ling-zhu-ce",
+      "title": "技能系统：BundledSkill 与命令注册",
+      "file": "22-ji-neng-xi-tong-bundledskill-yu-ming-ling-zhu-ce.md",
+      "section": "深入理解：集成与扩展",
+      "group": "插件与技能系统",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "23-gou-zi-xi-tong-hooks-pei-zhi-yu-zhi-xing-shi-ji",
+      "title": "钩子系统：Hooks 配置与执行时机",
+      "file": "23-gou-zi-xi-tong-hooks-pei-zhi-yu-zhi-xing-shi-ji.md",
+      "section": "深入理解：集成与扩展",
+      "group": "插件与技能系统",
+      "level": "Advanced"
+    },
+    {
+      "slug": "24-api-ke-hu-duan-anthropic-api-feng-zhuang-yu-cuo-wu-chu-li",
+      "title": "API 客户端：Anthropic API 封装与错误处理",
+      "file": "24-api-ke-hu-duan-anthropic-api-feng-zhuang-yu-cuo-wu-chu-li.md",
+      "section": "深入理解：集成与扩展",
+      "group": "服务层集成",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "25-oauth-2-0-liu-cheng-ren-zheng-yu-ling-pai-shua-xin",
+      "title": "OAuth 2.0 流程：认证与令牌刷新",
+      "file": "25-oauth-2-0-liu-cheng-ren-zheng-yu-ling-pai-shua-xin.md",
+      "section": "深入理解：集成与扩展",
+      "group": "服务层集成",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "26-shang-xia-wen-ya-suo-compact-fu-wu-yu-dui-hua-zhai-yao",
+      "title": "上下文压缩：compact 服务与对话摘要",
+      "file": "26-shang-xia-wen-ya-suo-compact-fu-wu-yu-dui-hua-zhai-yao.md",
+      "section": "深入理解：集成与扩展",
+      "group": "服务层集成",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "27-nei-cun-zi-dong-ti-qu-extractmemories-yu-chi-jiu-hua",
+      "title": "内存自动提取：extractMemories 与持久化",
+      "file": "27-nei-cun-zi-dong-ti-qu-extractmemories-yu-chi-jiu-hua.md",
+      "section": "深入理解：集成与扩展",
+      "group": "服务层集成",
+      "level": "Advanced"
+    },
+    {
+      "slug": "28-repl-zhu-jie-mian-ping-mu-zu-zhi-yu-xiao-xi-xuan-ran",
+      "title": "REPL 主界面：屏幕组织与消息渲染",
+      "file": "28-repl-zhu-jie-mian-ping-mu-zu-zhi-yu-xiao-xi-xuan-ran.md",
+      "section": "深入理解：UI 与交互",
+      "group": "终端 UI 组件",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "29-ink-kuang-jia-ji-cheng-react-zhong-duan-xuan-ran-yin-qing",
+      "title": "Ink 框架集成：React 终端渲染引擎",
+      "file": "29-ink-kuang-jia-ji-cheng-react-zhong-duan-xuan-ran-yin-qing.md",
+      "section": "深入理解：UI 与交互",
+      "group": "终端 UI 组件",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "30-xiao-xi-zu-jian-message-messagerow-yu-xu-ni-gun-dong",
+      "title": "消息组件：Message、MessageRow 与虚拟滚动",
+      "file": "30-xiao-xi-zu-jian-message-messagerow-yu-xu-ni-gun-dong.md",
+      "section": "深入理解：UI 与交互",
+      "group": "终端 UI 组件",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "31-promptinput-yong-hu-shu-ru-chu-li-yu-mo-shi-qie-huan",
+      "title": "PromptInput：用户输入处理与模式切换",
+      "file": "31-promptinput-yong-hu-shu-ru-chu-li-yu-mo-shi-qie-huan.md",
+      "section": "深入理解：UI 与交互",
+      "group": "输入与交互",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "32-jian-pan-bang-ding-xi-tong-kuai-jie-jian-pei-zhi-yu-pi-pei",
+      "title": "键盘绑定系统：快捷键配置与匹配",
+      "file": "32-jian-pan-bang-ding-xi-tong-kuai-jie-jian-pei-zhi-yu-pi-pei.md",
+      "section": "深入理解：UI 与交互",
+      "group": "输入与交互",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "33-vim-mo-shi-shi-xian-motion-operator-yu-text-objects",
+      "title": "Vim 模式实现：motion、operator 与 text objects",
+      "file": "33-vim-mo-shi-shi-xian-motion-operator-yu-text-objects.md",
+      "section": "深入理解：UI 与交互",
+      "group": "输入与交互",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "34-quan-xian-qing-qiu-dui-hua-kuang-permissionrequest-zu-jian",
+      "title": "权限请求对话框：PermissionRequest 组件",
+      "file": "34-quan-xian-qing-qiu-dui-hua-kuang-permissionrequest-zu-jian.md",
+      "section": "深入理解：UI 与交互",
+      "group": "权限与确认对话框",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "35-mcp-fu-wu-qi-shen-pi-liu-cheng-mcpserverapprovaldialog",
+      "title": "MCP 服务器审批流程：MCPServerApprovalDialog",
+      "file": "35-mcp-fu-wu-qi-shen-pi-liu-cheng-mcpserverapprovaldialog.md",
+      "section": "深入理解：UI 与交互",
+      "group": "权限与确认对话框",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "36-ji-hua-mo-shi-qie-huan-enterplanmode-exitplanmode-jiao-hu",
+      "title": "计划模式切换：EnterPlanMode/ExitPlanMode 交互",
+      "file": "36-ji-hua-mo-shi-qie-huan-enterplanmode-exitplanmode-jiao-hu.md",
+      "section": "深入理解：UI 与交互",
+      "group": "权限与确认对话框",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "37-duo-dai-li-xie-diao-coordinator-mo-shi-yu-tuan-dui-xie-zuo",
+      "title": "多代理协调：Coordinator 模式与团队协作",
+      "file": "37-duo-dai-li-xie-diao-coordinator-mo-shi-yu-tuan-dui-xie-zuo.md",
+      "section": "深入理解：高级特性",
+      "level": "Advanced"
+    },
+    {
+      "slug": "38-zi-dai-li-gong-ju-agenttool-yu-ren-wu-wei-pai",
+      "title": "子代理工具：AgentTool 与任务委派",
+      "file": "38-zi-dai-li-gong-ju-agenttool-yu-ren-wu-wei-pai.md",
+      "section": "深入理解：高级特性",
+      "level": "Advanced"
+    },
+    {
+      "slug": "39-yuan-cheng-hui-hua-remotesessionmanager-yu-websocket-tong-xin",
+      "title": "远程会话：RemoteSessionManager 与 WebSocket 通信",
+      "file": "39-yuan-cheng-hui-hua-remotesessionmanager-yu-websocket-tong-xin.md",
+      "section": "深入理解：高级特性",
+      "level": "Advanced"
+    },
+    {
+      "slug": "40-git-worktree-ji-cheng-ge-chi-gong-zuo-shu-guan-li",
+      "title": "Git Worktree 集成：隔离工作树管理",
+      "file": "40-git-worktree-ji-cheng-ge-chi-gong-zuo-shu-guan-li.md",
+      "section": "深入理解：高级特性",
+      "level": "Advanced"
+    },
+    {
+      "slug": "41-lsp-ji-cheng-yu-yan-fu-wu-qi-xie-yi-ke-hu-duan-shi-xian",
+      "title": "LSP 集成：语言服务器协议客户端实现",
+      "file": "41-lsp-ji-cheng-yu-yan-fu-wu-qi-xie-yi-ke-hu-duan-shi-xian.md",
+      "section": "深入理解：高级特性",
+      "level": "Advanced"
+    },
+    {
+      "slug": "42-cheng-ben-zhui-zong-token-ji-fei-yu-yong-liang-tong-ji",
+      "title": "成本追踪：token 计费与用量统计",
+      "file": "42-cheng-ben-zhui-zong-token-ji-fei-yu-yong-liang-tong-ji.md",
+      "section": "深入理解：高级特性",
+      "level": "Advanced"
+    },
+    {
+      "slug": "43-dai-ma-feng-ge-yu-ming-ming-yue-ding",
+      "title": "代码风格与命名约定",
+      "file": "43-dai-ma-feng-ge-yu-ming-ming-yue-ding.md",
+      "section": "开发实践",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "44-diao-shi-ji-qiao-ri-zhi-zhen-duan-yu-xing-neng-fen-xi",
+      "title": "调试技巧：日志、诊断与性能分析",
+      "file": "44-diao-shi-ji-qiao-ri-zhi-zhen-duan-yu-xing-neng-fen-xi.md",
+      "section": "开发实践",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "45-te-xing-kai-guan-bun-bundle-feature-flags-ji-zhi",
+      "title": "特性开关：Bun bundle feature flags 机制",
+      "file": "45-te-xing-kai-guan-bun-bundle-feature-flags-ji-zhi.md",
+      "section": "开发实践",
+      "level": "Advanced"
+    },
+    {
+      "slug": "46-jing-tai-fen-xi-fang-fa-wu-gou-jian-huan-jing-xia-de-dai-ma-tan-suo",
+      "title": "静态分析方法：无构建环境下的代码探索",
+      "file": "46-jing-tai-fen-xi-fang-fa-wu-gou-jian-huan-jing-xia-de-dai-ma-tan-suo.md",
+      "section": "开发实践",
+      "level": "Intermediate"
+    }
+  ]
+}
