@@ -3,7 +3,7 @@ name = "nano-claude"
 version = "0.1.0"
 description = "Minimal Python CLI framework - understanding through subtraction"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "anthropic>=0.87.0",
     "claude-agent-sdk>=0.1.53",
