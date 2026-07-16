@@ -38,7 +38,7 @@ def test_repl_startup():
 
     # Wait for banner
     child.expect("Nano-Claude")
-    child.expect("connected")
+    child.expect("whyj")
 
     # Clean exit
     child.sendline("/exit")
@@ -102,19 +102,11 @@ def test_unknown_command():
 
 
 @_requires_pexpect
-def test_mock_mode():
-    """Test mock mode behavior - depends on settings.json having no API key."""
-    # Note: This test only works if ~/.nano-claude/settings.json has no API key
-    # If API key exists, the test will verify connected mode instead
+def test_banner_reaches_prompt_in_any_connection_mode():
+    """The simplified banner reaches the prompt regardless of API setup."""
     child = SPAWN("uv run python -m src.cli.main", timeout=10)
 
-    # Either mock-mode or connected should appear
-    try:
-        child.expect("mock-mode", timeout=2)
-    except (pexpect.exceptions.TIMEOUT, pexpect.exceptions.EOF):
-        # If not mock mode, should be connected
-        child.expect("connected")
-
+    child.expect("Nano-Claude")
     child.expect(">")
     child.sendline("/exit")
     child.expect(EOF_OBJ)

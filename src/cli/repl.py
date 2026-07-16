@@ -3,29 +3,46 @@
 from __future__ import annotations
 
 import asyncio
+from importlib.metadata import PackageNotFoundError, version as distribution_version
 import sys
 import time
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.filters import to_filter
 from prompt_toolkit.styles import Style as PtStyle
 from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.shortcuts.choice_input import ChoiceInput
 
 from rich.console import Console
 from rich.status import Status
-from rich.style import Style as RichStyle
+from rich.text import Text
 
-from ..agent.agent import AgentSession, StreamChunk
+from ..agent.agent import AgentSession
 from ..agent.settings import (
     get_api_key,
     get_base_url,
     get_model,
     get_actual_model,
+    get_context_window,
     load_settings,
     save_settings,
 )
 from ..buddy import roll_buddy
+from .hud import HudState
+from .theme import (
+    BRAND_ACCENT,
+    BRAND_PRIMARY,
+    CHOICE_STYLE_RULES,
+    ERROR,
+    PT_STYLE_RULES,
+    SEPARATOR,
+    SUCCESS,
+    TEXT_MUTED,
+    TEXT_SUBTLE,
+    WARNING,
+)
+from .tui import CodexBottomPane, PlainBottomPane
 
 # Force UTF-8 encoding for Windows
 if sys.platform == "win32":
@@ -53,21 +70,8 @@ COMMANDS = {
 }
 MODEL_TIERS = ("sonnet", "opus", "haiku")
 
-# Prompt-toolkit style - black background theme
-PT_STYLE = PtStyle.from_dict(
-    {
-        "prompt": "bold",
-        # Completion menu colors - black background
-        "completion-menu": "bg:#000000",
-        "completion-menu.completion": "bg:#000000 #e0e0e0",
-        "completion-menu.completion.selected": "bg:#000000 #00ff88 bold",
-        "completion-menu.meta": "bg:#000000 #808080",
-        "completion-menu.meta.selected": "bg:#000000 #00ff88",
-        # Scrollbar
-        "scrollbar": "bg:#1a1a1a",
-        "scrollbar.button": "bg:#404040",
-    }
-)
+# Prompt-toolkit style for the inline composer and its compact footer.
+PT_STYLE = PtStyle.from_dict(PT_STYLE_RULES)
 
 
 class CommandCompleter(Completer):
@@ -86,128 +90,54 @@ class CommandCompleter(Completer):
                     )
 
 
-class StreamingStatus:
-    """Deterministic braille-spinner status for streaming responses."""
-
-    # Braille dot frames — smooth, deterministic rotation
-    _FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-    _FRAME_INTERVAL = 0.08  # seconds per frame (~12.5 fps)
-
-    def __init__(self):
-        self.start_time = time.time()
-        self.tokens = 0
-        self._stop_event = asyncio.Event()
-        self._task = None
-        self._frame_idx = 0
-        self._pause_event = asyncio.Event()
-        self._pause_event.set()  # not paused initially
-
-    def _format_time(self) -> str:
-        elapsed = time.time() - self.start_time
-        if elapsed < 60:
-            return f"{int(elapsed)}s"
-        mins = int(elapsed // 60)
-        secs = int(elapsed % 60)
-        return f"{mins}m {secs}s"
-
-    def _format_tokens(self) -> str:
-        if self.tokens < 1000:
-            return str(self.tokens)
-        return f"{self.tokens / 1000:.1f}k"
-
-    def _print_status(self):
-        import sys
-
-        frame = self._FRAMES[self._frame_idx % len(self._FRAMES)]
-        elapsed = self._format_time()
-        if self.tokens > 0:
-            tokens_str = self._format_tokens()
-            rich_str = f"[dim]{frame} Thinking... ({elapsed} · {tokens_str} tokens)[/]"
-        else:
-            rich_str = f"[dim]{frame} Thinking... ({elapsed})[/]"
-
-        rendered = console.render_str(rich_str, highlight=False)
-        sys.stdout.write(f"\r{rendered}\033[K")
-        sys.stdout.flush()
-
-    async def _animate(self):
-        while not self._stop_event.is_set():
-            if self._pause_event.is_set():
-                self._print_status()
-                self._frame_idx += 1
-            await asyncio.sleep(self._FRAME_INTERVAL)
-
-    def start(self):
-        self._task = asyncio.create_task(self._animate())
-
-    def pause(self):
-        """Pause the spinner animation and clear the status line."""
-        import sys
-        self._pause_event.clear()
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
-
-    def resume(self):
-        """Resume the spinner animation."""
-        self._pause_event.set()
-
-    def update_tokens(self, new_tokens: int):
-        """Update token count and refresh display."""
-        self.tokens += new_tokens
-        self._print_status()
-
-    async def stop(self) -> tuple[float, int]:
-        """Stop the status display and return stats."""
-        import sys
-
-        self._stop_event.set()
-        if self._task:
-            try:
-                await asyncio.wait_for(self._task, timeout=1.0)
-            except asyncio.TimeoutError:
-                pass
-        sys.stdout.write("\r\033[K")
-        sys.stdout.flush()
-        return time.time() - self.start_time, self.tokens
-
-
 def _print_banner() -> None:
     """Render startup banner with animation."""
-    model = get_model()
     api_key = get_api_key()
-    status = "connected" if api_key else "mock-mode"
+    try:
+        app_version = distribution_version("nano-claude")
+    except PackageNotFoundError:  # pragma: no cover - source-only fallback
+        app_version = "0.1.0"
 
     # Loading animation (ASCII spinner for Windows compatibility)
     with Status(
-        "[bold green]Initializing Nano-Claude...", console=console, spinner="line"
+        f"[bold {BRAND_PRIMARY}]Initializing Nano-Claude...[/]",
+        console=console,
+        spinner="line",
     ):
         time.sleep(0.5)
 
-    # Banner
-    banner = f"""
- ⎿ ▐▛███▜▌
- ▝▜█████▛▘
- ▘▘ ▝▝
-Nano-Claude (Only for Learning)
-{model} · {status}
-"""
-    console.print(banner, highlight=False, style=RichStyle(bold=True, color="#8C6239"))
+    banner = Text("\n")
+    banner.append(" ⎿ ▐▛███▜▌\n ▝▜█████▛▘\n ▘▘ ▝▝\n", style=f"bold {BRAND_PRIMARY}")
+    banner.append("Nano-Claude", style=f"bold {BRAND_ACCENT}")
+    banner.append(f" (v{app_version} - ", style=TEXT_SUBTLE)
+    banner.append("whyj", style=BRAND_PRIMARY)
+    banner.append(")\n", style=TEXT_SUBTLE)
+    console.print(banner, highlight=False)
 
-    if status == "mock-mode":
-        console.print("[yellow]No API key. Running in mock mode.[/]")
-        console.print("[dim]Edit ~/.nano-claude/settings.json[/]\n")
+    if not api_key:
+        console.print(Text("No API key. Running in mock mode.", style=WARNING))
+        console.print(Text("Edit ~/.nano-claude/settings.json\n", style=TEXT_SUBTLE))
 
 
-def _create_prompt_session() -> PromptSession | None:
+def _create_prompt_session(
+    hud: HudState | None = None,
+) -> PromptSession | None:
     """Create prompt session with command completion, or None if non-interactive."""
     if not sys.stdin.isatty():
         return None  # Fall back to simple input in non-interactive mode
-    return PromptSession(
+    session = PromptSession(
         completer=CommandCompleter(),
         style=PT_STYLE,
         complete_while_typing=True,
         complete_style=CompleteStyle.MULTI_COLUMN,
+        bottom_toolbar=hud.formatted_text if hud else None,
+        erase_when_done=False,
+        reserve_space_for_menu=0,
+        wrap_lines=False,
+        full_screen=False,
     )
+    session.layout.current_window.dont_extend_height = to_filter(True)
+    return session
 
 
 async def _get_input(prompt_session: PromptSession | None) -> str:
@@ -217,7 +147,7 @@ async def _get_input(prompt_session: PromptSession | None) -> str:
         return input("> ").strip()
     else:
         # Interactive mode: use prompt_toolkit
-        raw = await prompt_session.prompt_async(">", multiline=False)
+        raw = await prompt_session.prompt_async("› ", multiline=False)
         return raw.strip()
 
 
@@ -267,8 +197,8 @@ def _print_buddy() -> None:
     skill_filled = attr.skill // 10
 
     # Build attribute bars
-    health_bar = f"[red]{'+' * health_filled}{'-' * (10 - health_filled)}[/]"
-    stamina_bar = f"[green]{'#' * stamina_filled}{':' * (10 - stamina_filled)}[/]"
+    health_bar = f"[{ERROR}]{'+' * health_filled}{'-' * (10 - health_filled)}[/]"
+    stamina_bar = f"[{SUCCESS}]{'#' * stamina_filled}{':' * (10 - stamina_filled)}[/]"
     skill_bar = f"[blue]{'#' * skill_filled}{':' * (10 - skill_filled)}[/]"
 
     # Combine art and attributes
@@ -303,18 +233,8 @@ def _print_help() -> None:
     console.print("  /clear          - Clear current session messages\n")
 
 
-# Choice menu style - dark theme with black background
-CHOICE_STYLE = PtStyle.from_dict(
-    {
-        "choice": "bg:#000000 #e0e0e0",
-        "choice.selected": "bg:#000000 #00ff88 bold",
-        "choice.unselected": "bg:#000000 #606060",
-        "prompt": "bg:#000000 #00ff88 bold",
-        "separator": "bg:#000000 #404040",
-        "frame": "bg:#000000 #606060",
-        "frame.label": "bg:#000000 #ffffff",
-    }
-)
+# Choice menus use the same restrained, background-free hierarchy.
+CHOICE_STYLE = PtStyle.from_dict(CHOICE_STYLE_RULES)
 
 
 async def _handle_model_async(arg: str = "") -> None:
@@ -358,7 +278,7 @@ async def _handle_model_async(arg: str = "") -> None:
         settings = load_settings()
         settings.env["NANO_CLAUDE_DEFAULT_SONNET_MODEL"] = new_model
         save_settings(settings)
-        console.print(f"[green]Switched default model to {new_model}[/]\n")
+        console.print(f"[{SUCCESS}]Switched default model to {new_model}[/]\n")
 
     except (KeyboardInterrupt, EOFError):
         console.print("[dim]Cancelled[/]\n")
@@ -393,18 +313,8 @@ async def _select_command() -> str | None:
         return None
 
 
-async def _handle_local_command(line: str) -> tuple[bool, bool]:
-    """Handle local command. Returns (handled, should_exit)."""
-    # If just "/" entered, show command selection menu
-    if line == "/":
-        selected = await _select_command()
-        if selected:
-            # Recursively handle the selected command
-            return await _handle_local_command(selected)
-        return True, False
-
-    cmd, arg = _parse_command(line)
-
+async def _handle_common_command(cmd: str, arg: str) -> tuple[bool, bool]:
+    """Dispatch commands that behave identically in every REPL mode."""
     if cmd in {"/exit", "/quit"}:
         return True, True
     if cmd == "/help":
@@ -430,6 +340,21 @@ async def _handle_local_command(line: str) -> tuple[bool, bool]:
     if cmd == "/dream":
         await _handle_dream()
         return True, False
+    return False, False
+
+
+async def _handle_local_command(line: str) -> tuple[bool, bool]:
+    """Handle local command. Returns (handled, should_exit)."""
+    if line == "/":
+        selected = await _select_command()
+        if selected:
+            return await _handle_local_command(selected)
+        return True, False
+
+    cmd, arg = _parse_command(line)
+    handled, should_exit = await _handle_common_command(cmd, arg)
+    if handled:
+        return handled, should_exit
     if cmd in ("/resume", "/sessions"):
         return True, True  # Mock mode: exit (no session to resume)
     return False, False
@@ -448,36 +373,15 @@ async def _handle_connected_command(
     if line == "/":
         selected = await _select_command()
         if selected:
-            return await _handle_connected_command(selected, agent_session, session_holder)
+            return await _handle_connected_command(
+                selected, agent_session, session_holder
+            )
         return True, False
 
     cmd, arg = _parse_command(line)
-
-    if cmd in {"/exit", "/quit"}:
-        return True, True
-    if cmd == "/help":
-        _print_help()
-        return True, False
-    if cmd == "/model":
-        await _handle_model_async(arg)
-        return True, False
-    if cmd == "/config":
-        tier = get_model()
-        actual = get_actual_model(tier)
-        console.print(f"\n[bold]Tier:[/]  {tier}")
-        console.print(f"[bold]Model:[/] {actual}")
-        console.print(f"[bold]API:[/]   {'***' if get_api_key() else 'none'}")
-        console.print(f"[bold]URL:[/]   {get_base_url() or 'default'}\n")
-        return True, False
-    if cmd == "/buddy":
-        _print_buddy()
-        return True, False
-    if cmd == "/memory":
-        await _handle_memory_async()
-        return True, False
-    if cmd == "/dream":
-        await _handle_dream()
-        return True, False
+    handled, should_exit = await _handle_common_command(cmd, arg)
+    if handled:
+        return handled, should_exit
     if cmd == "/sessions":
         _handle_sessions()
         return True, False
@@ -493,7 +397,7 @@ async def _handle_connected_command(
                 else target
             )
             if not sid:
-                console.print("[yellow]No sessions to resume.[/]")
+                console.print(f"[{WARNING}]No sessions to resume.[/]")
             else:
                 new_session = AgentSession.load(sid)
                 if new_session:
@@ -506,7 +410,7 @@ async def _handle_connected_command(
                     )
                     _show_session_history(new_session)
                 else:
-                    console.print(f"[red]Session not found:[/] {sid}")
+                    console.print(f"[{ERROR}]Session not found:[/] {sid}")
         else:
             await _resume_picker(agent_session, session_holder)
         return True, False
@@ -516,7 +420,7 @@ async def _handle_connected_command(
         if path:
             console.print(f"[dim]Saved: {path}[/]")
         else:
-            console.print("[yellow]Nothing to save (no messages).[/]")
+            console.print(f"[{WARNING}]Nothing to save (no messages).[/]")
         return True, False
 
     if cmd == "/clear":
@@ -591,7 +495,7 @@ async def _handle_memory_async() -> None:
 
         entry = get_memory(selected)
         if not entry:
-            console.print(f"[red]Not found:[/] {selected}\n")
+            console.print(f"[{ERROR}]Not found:[/] {selected}\n")
             return
         console.print(f"\n[bold cyan]{entry.name}[/] [dim]({entry.type.value})[/]")
         console.print(f"[dim]{entry.description}[/]")
@@ -625,9 +529,9 @@ async def _handle_memory_async() -> None:
             return
 
         if delete_memory(selected):
-            console.print(f"[green]Deleted:[/] {selected}\n")
+            console.print(f"[{SUCCESS}]Deleted:[/] {selected}\n")
         else:
-            console.print(f"[red]Not found:[/] {selected}\n")
+            console.print(f"[{ERROR}]Not found:[/] {selected}\n")
 
 
 def _show_session_history(session: AgentSession) -> None:
@@ -732,7 +636,7 @@ async def _resume_picker(
         )
         _show_session_history(new_session)
     else:
-        console.print(f"\n[red]Session not found:[/] {selected}\n")
+        console.print(f"\n[{ERROR}]Session not found:[/] {selected}\n")
 
 
 async def _handle_dream() -> None:
@@ -751,7 +655,7 @@ async def _handle_dream() -> None:
     if result.created > 0 or result.updated > 0:
         lines: list[str] = []
         if result.created:
-            lines.append(f"[green]+ {result.created} created[/]")
+            lines.append(f"[{SUCCESS}]+ {result.created} created[/]")
         if result.updated:
             lines.append(f"[cyan]~ {result.updated} updated[/]")
         if result.skipped:
@@ -772,11 +676,13 @@ async def _handle_dream() -> None:
                     bak_rel = os.path.relpath(bak, root) if os.path.isabs(bak) else bak
                     lines.append(f"  [cyan]{rel}[/] [dim]<-- {bak_rel}[/]")
                 else:
-                    lines.append(f"  [green]{rel}[/]")
-        console.print(Panel("\n".join(lines), title="Consolidated", border_style="red"))
+                    lines.append(f"  [{SUCCESS}]{rel}[/]")
+        console.print(
+            Panel("\n".join(lines), title="Consolidated", border_style=ERROR)
+        )
     else:
         console.print(Panel("[dim]No new signals found. Nothing to consolidate.[/]",
-                            border_style="dim"))
+                            border_style=SEPARATOR))
 
     # Append to dream log
     _append_dream_log(result)
@@ -833,11 +739,11 @@ def _show_dream_summary() -> None:
 
     # ── History table ──
     if entries:
-        table = Table(show_header=True, header_style="bold dim", border_style="dim",
+        table = Table(show_header=True, header_style=f"bold {BRAND_ACCENT}", border_style=SEPARATOR,
                       padding=(0, 1))
-        table.add_column("Time", style="dim", min_width=19)
+        table.add_column("Time", style=TEXT_SUBTLE, min_width=19)
         table.add_column("Changes", min_width=16)
-        table.add_column("Signals", style="dim")
+        table.add_column("Signals", style=TEXT_SUBTLE)
 
         for entry in entries[-8:]:
             ts = entry.get("timestamp", "?")[:19]
@@ -847,7 +753,7 @@ def _show_dream_summary() -> None:
 
             parts = []
             if created:
-                parts.append(f"[green]+{created}[/]")
+                parts.append(f"[{SUCCESS}]+{created}[/]")
             if updated:
                 parts.append(f"[cyan]~{updated}[/]")
             changes = " ".join(parts) if parts else "[dim]--[/]"
@@ -883,162 +789,218 @@ def _show_dream_summary() -> None:
 
 
 def _display_tool_invocation(inv) -> None:
-    """Display a tool invocation with its output."""
-    # Header: tool name + arg preview
-    args = inv.args
-    if args:
-        first_val = str(list(args.values())[0])[:60]
-        console.print(f"\n[green]  {inv.name}[/]([dim]{first_val}[/])")
+    """Render a finalized tool history cell using Codex's compact grammar."""
+    args = inv.args or {}
+    is_shell = inv.name.lower() in {"bash", "shell", "shell_command"}
+    marker = "✗" if inv.result.is_error else "•"
+    if is_shell:
+        command = str(args.get("command") or next(iter(args.values()), ""))
+        label = f"Ran {command}".rstrip()
     else:
-        console.print(f"\n[green]  {inv.name}[/]")
+        preview = ", ".join(f"{key}={value!r}" for key, value in args.items())
+        label = f"Called {inv.name}({preview[:100]})"
+    header = Text()
+    header.append(
+        f"{marker} ",
+        style=f"bold {ERROR if inv.result.is_error else BRAND_PRIMARY}",
+    )
+    header.append(label, style=ERROR if inv.result.is_error else TEXT_MUTED)
+    console.print()
+    console.print(header)
 
-    # Output lines (dim, with | prefix)
-    output = inv.result.output
-    lines = output.split("\n")
+    lines = inv.result.output.splitlines() or ["(no output)"]
     max_lines = 20
-    for line in lines[:max_lines]:
-        console.print(f"[dim]  | {line}[/]")
+    output_style = ERROR if inv.result.is_error else TEXT_MUTED
+    for index, line in enumerate(lines[:max_lines]):
+        prefix = "  └ " if index == 0 else "    "
+        console.print(Text(f"{prefix}{line}", style=output_style), soft_wrap=True)
     remaining = len(lines) - max_lines
     if remaining > 0:
-        console.print(f"[dim]  \u2026 +{remaining} more lines[/]")
+        console.print(Text(f"    … +{remaining} lines", style=f"{TEXT_SUBTLE} italic"))
+
+
+def _display_thinking(thinking: str) -> None:
+    """Commit reasoning as a quiet Codex-style transcript cell."""
+    content = thinking.strip()
+    if not content:
+        return
+
+    console.print()
+    lines = content.splitlines()
+    first = Text("• ", style=BRAND_PRIMARY)
+    first.append(lines[0], style=f"{TEXT_MUTED} italic")
+    console.print(first, soft_wrap=True)
+    for line in lines[1:]:
+        console.print(
+            Text(f"  {line}", style=f"{TEXT_MUTED} italic"),
+            soft_wrap=True,
+        )
+
+
+def _display_user_message(message: str) -> None:
+    """Commit submitted composer text to terminal scrollback."""
+    lines = message.splitlines() or [""]
+    first = Text("› ", style=f"bold {BRAND_ACCENT}")
+    first.append(lines[0])
+    console.print(first, soft_wrap=True)
+    for line in lines[1:]:
+        console.print(Text(f"  {line}"), soft_wrap=True)
+
+
+def _display_agent_message(message: str) -> None:
+    """Commit the final assistant response as a transcript cell."""
+    lines = message.strip().splitlines()
+    if not lines:
+        return
+    console.print()
+    first = Text("• ", style=f"bold {BRAND_PRIMARY}")
+    first.append(lines[0])
+    console.print(first, soft_wrap=True)
+    for line in lines[1:]:
+        console.print(Text(f"  {line}"), soft_wrap=True)
+    # Keep finalized history visually separate from the persistent composer.
+    console.print()
+
+
+def _display_worked_separator(elapsed: float) -> None:
+    """Render Codex's completed-turn divider without a background."""
+    if elapsed < 60:
+        duration = f"{elapsed:.1f}s"
+    else:
+        duration = f"{int(elapsed // 60)}m {int(elapsed % 60):02d}s"
+    label = f" Worked for {duration} "
+    width = max(console.width, len(label) + 2)
+    left = "─"
+    right = "─" * max(width - len(label) - len(left), 1)
+    console.print()
+    console.print(Text(f"{left}{label}{right}", style=SEPARATOR), soft_wrap=True)
 
 
 async def _run_connected(session_holder: list[AgentSession]) -> None:
-    """Run connected REPL with prompt-toolkit and tool support.
-
-    ``session_holder`` is a single-element list so /resume can swap the
-    active session without changing the reference in the caller.
-    """
-    from ..tools import default_registry
+    """Run the connected REPL inside one persistent Codex-style bottom pane."""
     from ..permissions import build_security_gate
+    from ..tools import default_registry
 
-    # Mutable reference to the current status (set each turn)
-    current_status: list[StreamingStatus | None] = [None]
+    hud = HudState(
+        model_name=get_model,
+        context_window_tokens=get_context_window(),
+    )
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    if interactive:
+        pane = CodexBottomPane(
+            hud=hud,
+            style=PT_STYLE,
+            completer=CommandCompleter(),
+        )
+    else:
+        pane = PlainBottomPane()
 
     async def confirm_callback(tool_name: str, reason: str) -> bool:
-        """Ask user for tool permission with styled choice dialog."""
-        # Pause spinner while waiting for user input
-        if current_status[0]:
-            current_status[0].pause()
-        try:
-            dialog = ChoiceInput(
-                message=f"Security: {tool_name}",
-                options=[
-                    ("allow", "Allow once"),
-                    ("deny", "Deny"),
-                ],
-                style=CHOICE_STYLE,
-                show_frame=True,
-            )
-            # Print warning above the dialog
-            console.print(
-                f"\n[bold yellow]⚠  {reason}[/bold yellow]\n"
-            )
-            selected = await dialog.prompt_async()
-            return selected == "allow"
-        except (EOFError, KeyboardInterrupt):
-            return False
-        finally:
-            # Resume spinner after user responds
-            if current_status[0]:
-                current_status[0].resume()
+        """Render approval selection atomically above the same bottom pane."""
+        if not interactive:
+            console.print(Text(f"⚠ {reason}", style=WARNING))
+            answer = await asyncio.to_thread(input, f"Run {tool_name}? [y/N] ")
+            return answer.strip().lower() in {"y", "yes"}
+        async with pane.output_region():
+            try:
+                console.print(Text(f"⚠ {reason}", style=WARNING))
+                dialog = ChoiceInput(
+                    message=f"Run {tool_name}?",
+                    options=[
+                        ("allow", "Allow once"),
+                        ("deny", "Deny"),
+                    ],
+                    style=CHOICE_STYLE,
+                    show_frame=True,
+                )
+                return await dialog.prompt_async() == "allow"
+            except (EOFError, KeyboardInterrupt):
+                return False
 
     security = build_security_gate(confirm_callback=confirm_callback)
     registry = default_registry(security=security)
     tools_schema = registry.make_schema()
 
-    prompt_session = _create_prompt_session()
+    await pane.start()
+    try:
+        while True:
+            agent_session = session_holder[0]
+            try:
+                raw = await pane.next_input()
+            except (EOFError, KeyboardInterrupt):
+                await pane.print_above(
+                    lambda: console.print("\n[dim]Goodbye![/]")
+                )
+                break
+            if not raw:
+                continue
 
-    while True:
-        agent_session = session_holder[0]
+            try:
+                async with pane.output_region():
+                    _display_user_message(raw)
+                    handled, should_exit = await _handle_connected_command(
+                        raw, agent_session, session_holder
+                    )
+                    if raw.startswith("/") and not handled:
+                        console.print(f"[{ERROR}]Unknown command:[/] {raw}")
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                await pane.print_above(
+                    lambda: console.print(Text("■ Cancelled", style=TEXT_SUBTLE))
+                )
+                continue
 
-        try:
-            raw = await _get_input(prompt_session)
-        except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
-            console.print("\n[dim]Goodbye![/]")
-            break
-        if not raw:
-            continue
-
-        try:
-            handled, should_exit = await _handle_connected_command(
-                raw, agent_session, session_holder
-            )
             if should_exit:
                 break
-            if handled:
+            if handled or raw.startswith("/"):
                 continue
-            if raw.startswith("/"):
-                console.print(f"[red]Unknown command:[/] {raw}")
+
+            started_at = time.monotonic()
+            turn_task = asyncio.create_task(
+                agent_session.run_turn(
+                    raw,
+                    tools=tools_schema,
+                    tool_runner=registry.run,
+                    on_stream=pane.handle_stream,
+                )
+            )
+            pane.begin_turn(turn_task)
+
+            try:
+                turn = await turn_task
+            except asyncio.CancelledError:
+                async with pane.output_region():
+                    pane.finish_turn()
+                    console.print(Text("■ Interrupted", style=TEXT_SUBTLE))
                 continue
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            console.print("\n[dim]Cancelled[/]")
-            continue
+            except Exception as exc:  # pragma: no cover - runtime guard
+                async with pane.output_region():
+                    pane.finish_turn()
+                    console.print(Text(f"✗ Error: {exc}", style=ERROR))
+                continue
 
-        try:
-            # Spinner while waiting for API
-            status = StreamingStatus()
-            current_status[0] = status
-            status.start()
+            elapsed = time.monotonic() - started_at
+            hud.context_used_tokens = turn.context_tokens
+            hud.tracker.record(turn.performance)
+            pane.set_final_thinking(turn.thinking)
 
-            # Run agentic turn (handles tool loop internally)
-            turn = await agent_session.run_turn(
-                raw,
-                tools=tools_schema,
-                tool_runner=registry.run,
-            )
-
-            elapsed, _ = await status.stop()
-            current_status[0] = None
-
-            # Display tool invocations
-            for inv in turn.tool_invocations:
-                _display_tool_invocation(inv)
-
-            # Display final text
-            if turn.text:
-                console.print()
-                console.print(turn.text)
-                console.print()
-
-            # Summary
-            total_tokens = turn.usage.get("input_tokens", 0) + turn.usage.get(
-                "output_tokens", 0
-            )
-            if total_tokens >= 1000:
-                tokens_str = f"{total_tokens / 1000:.1f}k"
-            else:
-                tokens_str = str(total_tokens)
-
-            if elapsed < 60:
-                time_str = f"{elapsed:.1f}s"
-            else:
-                mins = int(elapsed // 60)
-                secs = elapsed % 60
-                time_str = f"{mins}m {secs:.0f}s"
-
-            parts = [f"{time_str}", f"~{tokens_str} tokens"]
-            tool_count = len(turn.tool_invocations)
-            if tool_count:
-                parts.append(f"{tool_count} tool call{'s' if tool_count > 1 else ''}")
-            console.print(f"[dim]* {' \u00b7 '.join(parts)}[/]")
-            console.print()
-
-        except asyncio.CancelledError:
-            if "status" in locals():
-                await status.stop()
-            console.print("\n[dim]Interrupted[/]")
-        except KeyboardInterrupt:
-            if "status" in locals():
-                await status.stop()
-            console.print("\n[dim]Interrupted[/]")
-        except Exception as exc:  # pragma: no cover - runtime guard
-            console.print(f"[red]Error:[/] {exc}")
+            async with pane.output_region():
+                pane.finish_turn()
+                _display_thinking(turn.thinking)
+                for invocation in turn.tool_invocations:
+                    _display_tool_invocation(invocation)
+                _display_worked_separator(elapsed)
+                _display_agent_message(turn.text)
+    finally:
+        await pane.close()
 
 
 async def _run_mock() -> None:
     """Run mock REPL with prompt-toolkit."""
-    prompt_session = _create_prompt_session()
+    hud = HudState(
+        model_name=get_model,
+        context_window_tokens=get_context_window(),
+    )
+    prompt_session = _create_prompt_session(hud)
 
     while True:
         try:
@@ -1056,7 +1018,7 @@ async def _run_mock() -> None:
             if handled:
                 continue
             if raw.startswith("/"):
-                console.print(f"[red]Unknown command:[/] {raw}")
+                console.print(f"[{ERROR}]Unknown command:[/] {raw}")
                 continue
             console.print(f"[dim][Mock][/] {raw}")
         except (KeyboardInterrupt, asyncio.CancelledError):
@@ -1077,14 +1039,14 @@ def run_repl(resume: str | None = None) -> int:
             if resume == "latest":
                 sid = AgentSession.latest_session_id()
                 if not sid:
-                    console.print("[yellow]No sessions to resume.[/]")
+                    console.print(f"[{WARNING}]No sessions to resume.[/]")
                     return
             else:
                 sid = resume
 
             session = AgentSession.load(sid)
             if session is None:
-                console.print(f"[red]Session not found:[/] {sid}")
+                console.print(f"[{ERROR}]Session not found:[/] {sid}")
                 return
             await session.start()  # Only creates client, doesn't reload memory
             msg_count = len(session.messages)
