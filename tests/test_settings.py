@@ -21,10 +21,24 @@ from src.agent.settings import (
     _resolve,
     get_api_key,
     get_base_url,
+    get_context_window,
     get_model,
     get_actual_model,
     load_settings,
 )
+
+
+class TestContextWindow(unittest.TestCase):
+    def test_minimax_m2_uses_documented_context_window(self):
+        with (
+            patch("src.agent.settings._resolve", return_value=""),
+            patch("src.agent.settings.get_model", return_value="MiniMax-M2.7"),
+        ):
+            self.assertEqual(get_context_window(), 204_800)
+
+    def test_explicit_context_window_takes_priority(self):
+        with patch("src.agent.settings._resolve", return_value="128000"):
+            self.assertEqual(get_context_window(), 128_000)
 
 
 def _write_tmp_json(path: Path, data: dict) -> None:

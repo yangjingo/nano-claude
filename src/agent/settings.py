@@ -212,3 +212,21 @@ def get_actual_model(tier: str) -> str:
         claude_os_key,
         fallback="glm-5",
     )
+
+
+def get_context_window() -> int | None:
+    """Return the configured or known context window for the active model."""
+    configured = _resolve(
+        "NANO_CLAUDE_CONTEXT_WINDOW",
+        "NANO_CLAUDE_CONTEXT_WINDOW",
+    )
+    if configured:
+        try:
+            value = int(configured)
+            return value if value > 0 else None
+        except ValueError:
+            return None
+
+    if get_model().lower().startswith("minimax-m2"):
+        return 204_800
+    return None

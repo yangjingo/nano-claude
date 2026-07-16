@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import sys
+import time
+import uuid
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
 from anthropic import AsyncAnthropic
-from anthropic.types import ContentBlockStopEvent, ContentBlockDeltaEvent
 import anthropic
 
 from .settings import get_api_key, get_base_url, get_model
 
 # Re-export tool types for convenience
 from ..tools import ToolResult  # noqa: F401
-
-import uuid
-from datetime import datetime
+from ..performance import ModelTiming, TurnPerformance
 
 
 @dataclass
@@ -57,6 +58,18 @@ class TurnOutput:
     text: str
     tool_invocations: list[ToolInvocation] = field(default_factory=list)
     usage: dict[str, int] = field(default_factory=dict)
+    performance: TurnPerformance | None = None
+    thinking: str = ""
+    context_tokens: int = 0
+
+
+def _thinking_text(block: Any) -> str:
+    """Extract provider-returned reasoning text from a content block."""
+    for attribute in ("thinking", "reasoning_content", "reasoning"):
+        value = getattr(block, attribute, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def create_async_client() -> AsyncAnthropic:
@@ -227,8 +240,17 @@ class AgentSession:
                     elif hasattr(block, "type"):
                         # Minimal serialization for SDK objects
                         b: dict[str, Any] = {"type": block.type}
-                        for attr in ("id", "name", "text", "input", "content",
-                                     "tool_use_id", "is_error"):
+                        for attr in (
+                            "id",
+                            "name",
+                            "text",
+                            "thinking",
+                            "signature",
+                            "input",
+                            "content",
+                            "tool_use_id",
+                            "is_error",
+                        ):
                             if hasattr(block, attr):
                                 b[attr] = getattr(block, attr)
                         blocks.append(b)
@@ -482,9 +504,13 @@ class AgentSession:
         )
 
         text_parts: list[str] = []
+        thinking_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
 
         for block in response.content:
+            thinking = _thinking_text(block)
+            if thinking:
+                thinking_parts.append(thinking)
             if hasattr(block, "text"):
                 text_parts.append(block.text)
             elif hasattr(block, "name"):
@@ -503,6 +529,7 @@ class AgentSession:
 
         return AgentResponse(
             text="\n".join(text_parts),
+            thinking="\n".join(thinking_parts),
             tool_calls=tool_calls,
             stop_reason=response.stop_reason,
             usage={
@@ -511,37 +538,85 @@ class AgentSession:
             },
         )
 
-    async def _create_with_retry(
-        self, max_retries: int = 3, **kwargs: Any,
-    ) -> Any:
-        """Call messages.create with retry on 529 (overloaded) and 429 (rate limit)."""
+    async def _stream_with_retry(
+        self,
+        max_retries: int = 3,
+        on_stream: Any = None,
+        **kwargs: Any,
+    ) -> tuple[Any, ModelTiming]:
+        """Stream one model request and return its complete response + timing."""
         import logging
 
         logger = logging.getLogger(__name__)
         for attempt in range(max_retries + 1):
+            request_started = time.perf_counter()
+            first_token_at: float | None = None
             try:
-                return await self.client.messages.create(**kwargs)
-            except anthropic.RateLimitError as e:
-                if attempt < max_retries:
-                    wait = 2 ** (attempt + 1)
-                    logger.warning(f"Rate limited, retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(wait)
-                else:
+                async with self.client.messages.stream(**kwargs) as stream:
+                    async for event in stream:
+                        if (
+                            first_token_at is None
+                            and event.type == "content_block_delta"
+                        ):
+                            first_token_at = time.perf_counter()
+                        if event.type == "content_block_delta" and on_stream:
+                            delta = getattr(event, "delta", None)
+                            chunk: StreamChunk | None = None
+                            if getattr(delta, "type", None) == "thinking_delta":
+                                content = getattr(delta, "thinking", "")
+                                if content:
+                                    chunk = StreamChunk("thinking", content)
+                            elif getattr(delta, "type", None) == "text_delta":
+                                content = getattr(delta, "text", "")
+                                if content:
+                                    chunk = StreamChunk("text", content)
+                            if chunk:
+                                callback_result = on_stream(chunk)
+                                if inspect.isawaitable(callback_result):
+                                    await callback_result
+                    response = await stream.get_final_message()
+
+                completed_at = time.perf_counter()
+                first_token_at = first_token_at or completed_at
+                output_tokens = int(
+                    getattr(response.usage, "output_tokens", 0) or 0
+                )
+                return response, ModelTiming(
+                    ttft_seconds=first_token_at - request_started,
+                    generation_seconds=max(completed_at - first_token_at, 0.0),
+                    output_tokens=output_tokens,
+                )
+            except anthropic.RateLimitError:
+                if attempt >= max_retries:
                     raise
-            except anthropic.APIStatusError as e:
-                if e.status_code == 529 and attempt < max_retries:
-                    wait = 3 ** (attempt + 1)
-                    logger.warning(f"API overloaded (529), retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(wait)
-                else:
+                wait = 2 ** (attempt + 1)
+                logger.warning(
+                    "Rate limited, retrying in %ss (attempt %s/%s)",
+                    wait,
+                    attempt + 1,
+                    max_retries,
+                )
+                await asyncio.sleep(wait)
+            except anthropic.APIStatusError as exc:
+                if exc.status_code != 529 or attempt >= max_retries:
                     raise
-        return None  # unreachable
+                wait = 3 ** (attempt + 1)
+                logger.warning(
+                    "API overloaded (529), retrying in %ss (attempt %s/%s)",
+                    wait,
+                    attempt + 1,
+                    max_retries,
+                )
+                await asyncio.sleep(wait)
+
+        raise RuntimeError("model request retry loop exited unexpectedly")
 
     async def run_turn(
         self,
         prompt: str,
         tools: list[dict[str, Any]] | None = None,
         tool_runner: Any = None,
+        on_stream: Any = None,
     ) -> TurnOutput:
         """Run a complete agentic turn with tool-use loop.
 
@@ -562,6 +637,12 @@ class AgentSession:
         self.messages.append({"role": "user", "content": enriched})
         model = get_model()
         invocations: list[ToolInvocation] = []
+        thinking_parts: list[str] = []
+        request_timings: list[ModelTiming] = []
+        turn_started = time.perf_counter()
+        input_tokens = 0
+        output_tokens = 0
+        context_tokens = 0
 
         while True:
             kwargs: dict[str, Any] = {
@@ -574,7 +655,25 @@ class AgentSession:
             if tools:
                 kwargs["tools"] = tools
 
-            response = await self._create_with_retry(**kwargs)
+            response, timing = await self._stream_with_retry(
+                on_stream=on_stream,
+                **kwargs,
+            )
+            request_timings.append(timing)
+            input_tokens += int(getattr(response.usage, "input_tokens", 0) or 0)
+            output_tokens += int(getattr(response.usage, "output_tokens", 0) or 0)
+            context_tokens = sum(
+                int(getattr(response.usage, name, 0) or 0)
+                for name in (
+                    "input_tokens",
+                    "cache_creation_input_tokens",
+                    "cache_read_input_tokens",
+                )
+            )
+            for block in response.content:
+                thinking = _thinking_text(block)
+                if thinking:
+                    thinking_parts.append(thinking)
 
             # Store full content blocks (including tool_use) in history
             self.messages.append(
@@ -621,8 +720,6 @@ class AgentSession:
         self._capture_turn_signals(prompt, text_parts, invocations)
 
         # Track token usage and auto-save
-        input_tokens = getattr(response.usage, "input_tokens", 0)
-        output_tokens = getattr(response.usage, "output_tokens", 0)
         self._token_usage["input"] += input_tokens
         self._token_usage["output"] += output_tokens
         self.save()
@@ -631,9 +728,15 @@ class AgentSession:
             text="\n".join(text_parts),
             tool_invocations=invocations,
             usage={
-                "input_tokens": getattr(response.usage, "input_tokens", 0),
-                "output_tokens": getattr(response.usage, "output_tokens", 0),
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
             },
+            performance=TurnPerformance(
+                requests=tuple(request_timings),
+                end_to_end_seconds=time.perf_counter() - turn_started,
+            ),
+            thinking="\n\n".join(thinking_parts),
+            context_tokens=context_tokens,
         )
 
     def _capture_turn_signals(
